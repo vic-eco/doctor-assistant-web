@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %} Interview {% endblock %}
+{% block script %}
+<script>
+    const csrftoken = "{{ csrf_token }}";
+    const saveAudioUrl = "{% url 'save_audio' %}";
+
+    //We only need audio permissions
+    let audioIN = { audio: true };
+
+    // Access the permission from the user
+    navigator.mediaDevices.getUserMedia(audioIN)
+  
+      .then(function (mediaStreamObj) {
+        
+        let timerDisplay = document.getElementById('timer');
+        let timerInterval;
+        let seconds = 0;
+
+        let start = document.getElementById('btnStart');
+        let stop = document.getElementById('btnStop');
+        let playAudio = document.getElementById('audioPlay'); 
+  
+        // Main recorder
+        let mediaRecorder = new MediaRecorder(mediaStreamObj);
+  
+        // Start event
+        start.addEventListener('click', function (ev) {
+          mediaRecorder.start();
+
+          //Count audio time
+          seconds = 0;
+          timerDisplay.textContent = "00:00";
+
+          timerInterval = setInterval(() => {
+            seconds++;
+            let m = String(Math.floor(seconds / 60)).padStart(2, '0');
+            let s = String(seconds % 60).padStart(2, '0');
+            timerDisplay.textContent = `${m}:${s}`;
+          }, 1000);
+        })
+  
+        // Stop event
+        stop.addEventListener('click', function (ev) {
+          mediaRecorder.stop();
+          clearInterval(timerInterval);
+        });
+  
+        // If audio data available, push it to the chunk array
+        mediaRecorder.ondataavailable = function (ev) {
+          dataArray.push(ev.data);
+        }
+  
+        // Chunk array to store the audio data 
+        let dataArray = [];
+  
+        // Convert the audio data into blob after stopping
+        mediaRecorder.onstop = function (ev) {
+          clearInterval(timerInterval);
+
+          // blob of type mp3
+          let audioData = new Blob(dataArray, { 'type': 'audio/mp3;' });
+          
+          dataArray = [];
+  
+          // Creating audio URL with reference of the created blob
+          let audioSrc = window.URL.createObjectURL(audioData);
+  
+          // Pass the audio URL to the audio tag
+          playAudio.src = audioSrc;
+
+          //Post audio to Django
+          let formData = new FormData();
+          formData.append("audio_file", audioData, "recording.mp3");
+
+          fetch(saveAudioUrl, {
+            method: "POST",
+            body: formData,
+            headers: {
+              "X-CSRFToken": csrftoken
+            },
+          })
+          .then(response => response.json())
+          .then(data => {
+            console.log("Upload complete:", data);
+          })
+          .catch(error => {
+            console.error("Upload error:", error);
+          });
+        }
+      })
+  
+      .catch(function (err) {
+        console.log(err.name, err.message);
+      });
+  </script>
+{% endblock %}
+
+{% block content %}
+  <h1>Interview {{user_type}}</h1>
+  <p>
+    <button id="btnStart">START RECORDING</button>
+    <button id="btnStop">STOP RECORDING</button>
+    <span id="timer" style="margin-left: 15px; font-weight: bold;">00:00</span>
+  </p>
+  
+  <audio id="audioPlay" controls></audio> 
+
+  <div>
+  <a href="{% url 'home' %}"><button>Home</button></a>
+  </div>
+{% endblock %}

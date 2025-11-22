@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %} Home {% endblock %}
+{% block content %}
+  <div>
+    <a href="{% url 'existing_user_interview' %}">
+      <button>Existing User</button>
+    </a>
+  </div>
+  <div>
+  <a href="{% url 'new_user_interview' %}">
+    <button>New User</button>
+  </a>
+  <div>
+{% endblock %}
