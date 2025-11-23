@@ -6,9 +6,16 @@
       <button>Existing User</button>
     </a>
   </div>
+  <br>
   <div>
   <a href="{% url 'new_user_interview' %}">
     <button>New User</button>
   </a>
   <div>
+  <br>
+  <div>
+  <a href="{% url 'authentication:logout' %}">
+    <button>Logout</button>
+  </a>
+  </div>
 {% endblock %}
