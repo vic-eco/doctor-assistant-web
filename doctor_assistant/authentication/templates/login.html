@@ -1,14 +1,33 @@
-{% extends 'base.html' %}
+{% extends 'base_auth.html' %}
+{% load static %}
+{% block style%}
+<link rel="stylesheet" href="{% static 'authentication/css/register.css' %}">
+{% endblock%}
 {% block title %}Login{% endblock %}
 {% block content %}
+<div class="signup-form">
+    <form action="{% url 'authentication:login' %}" method="post">
+		{% csrf_token %}
+		<h2>Login</h2>
 
-<form method="POST" action="{% url 'authentication:login' %}">
-    {% csrf_token %}
-    <input type="text" name="username" placeholder="Username" required><br>
-    <input type="password" name="password" placeholder="Password" required><br>
-    <button type="submit">Login</button>
-</form>
-
-<a href="{% url 'authentication:register' %}">Create an account</a>
+        <div class="form-group">
+        	<input type="text" class="form-control" name="username" placeholder="Username" required>
+        </div>
+		<div class="form-group">
+        	<input type="password" class="form-control" name="password" placeholder="Password" required><br>
+			{% if messages %}
+				{% for message in messages %}
+					<div class="alert alert-{{ message.tags }}">
+						{{ message }}
+					</div>
+				{% endfor %}
+			{% endif %}
+        </div>
+		<div class="form-group">
+            <button type="submit" class="btn btn-primary btn-lg btn-block">Login</button>
+        </div>
+    </form>
+	<div class="text-center bottom-text">Don't have an account? <a href="{% url 'authentication:register' %}">Create account</a></div>
+</div>
 
 {% endblock %}

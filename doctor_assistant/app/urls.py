@@ -3,7 +3,10 @@ from . import views
 
 urlpatterns = [
 	path("", views.home, name="home"),
-	path("interview/new_user", views.interview_new, name="new_user_interview"),
-	path("interview/existing_user", views.interview_existing, name="existing_user_interview"),
+	path("start/<str:type>/", views.start_interview, name="start_interview"),
+	path("enter-id/<int:interview_id>/", views.enter_patient_id, name="enter_patient_id"),
+	path("record/<int:interview_id>/", views.record_interview, name="record_interview"),
+
+	path("record_interview/", views.record_interview, name="record_interview"),
 	path("save_audio/", views.save_audio, name="save_audio"),
 ]

@@ -97,12 +97,15 @@
 {% endblock %}
 
 {% block content %}
-  <h1>Interview {{user_type}}</h1>
-  <p>
+	<h2>Recording Interview</h2>
+
+	<p><strong>Patient ID:</strong> {{ interview.patient_id }}</p>
+	<p><strong>Type:</strong> {{ interview.get_interview_type_display }}</p> 
+	<p>
     <button id="btnStart">START RECORDING</button>
     <button id="btnStop">STOP RECORDING</button>
     <span id="timer" style="margin-left: 15px; font-weight: bold;">00:00</span>
-  </p>
+  	</p>
   
   <audio id="audioPlay" controls></audio> 
 

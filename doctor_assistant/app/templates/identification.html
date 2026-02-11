@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %} Patient Identification {% endblock %}
+
+{% block content %}
+
+<div style="max-width:500px; margin:60px auto;">
+
+  <h2>
+    {% if interview.interview_type == "new" %}
+      New Patient Interview
+    {% else %}
+      Existing Patient Interview
+    {% endif %}
+  </h2>
+
+  <form method="POST" action="{% url 'enter_patient_id' interview.id %}">
+    {% csrf_token %}
+
+    <label for="patient_id">Patient ID</label>
+
+    <input
+      type="text"
+      name="patient_id"
+      id="patient_id"
+      required
+      style="width:100%; padding:10px; margin-top:10px;"
+      placeholder="Enter patient ID"
+    >
+
+    <button type="submit" style="margin-top:20px;">
+      Continue to Recording
+    </button>
+  </form>
+
+</div>
+
+{% endblock %}

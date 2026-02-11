@@ -5,6 +5,8 @@ name = "pypi"
 
 [packages]
 django = "*"
+paramiko = "*"
+django-environ = "*"
 
 [dev-packages]
 

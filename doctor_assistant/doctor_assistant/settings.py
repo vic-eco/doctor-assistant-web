@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+import environ
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -128,3 +129,13 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 LOGIN_URL = 'authentication/login'
+
+
+env = environ.Env()
+env.read_env(os.path.join(BASE_DIR, '.env')) 
+
+SSH_HOST = env("SSH_HOST")
+SSH_USER=env("SSH_USER")
+SSH_KEY_PATH=env("SSH_KEY_PATH")
+REMOTE_OUTPUT_PATH=env("REMOTE_OUTPUT_PATH")
+REMOTE_INPUT_PATH=env("REMOTE_INPUT_PATH")

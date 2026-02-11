@@ -1,21 +1,88 @@
 {% extends "base.html" %}
 {% block title %} Home {% endblock %}
+
 {% block content %}
-  <div>
-    <a href="{% url 'existing_user_interview' %}">
-      <button>Existing User</button>
-    </a>
-  </div>
-  <br>
-  <div>
-  <a href="{% url 'new_user_interview' %}">
-    <button>New User</button>
-  </a>
-  <div>
-  <br>
-  <div>
-  <a href="{% url 'authentication:logout' %}">
-    <button>Logout</button>
-  </a>
-  </div>
+<style>
+    body {
+        background: #f7faff;
+        font-family: 'Roboto', sans-serif;
+        margin: 0;
+        padding: 0;
+    }
+
+    /* Logout top-right */
+    .logout-link {
+        position: absolute;
+        top: 25px;
+        right: 40px;
+        font-size: 16px;
+        font-weight: 500;
+        color: #0a6cff;
+        text-decoration: none;
+        transition: 0.2s;
+    }
+
+    .logout-link:hover {
+        color: #084fb8;
+    }
+
+    /* Welcome section */
+    .welcome-wrapper {
+        margin-top: 160px;
+        text-align: center;
+    }
+
+    .welcome-title {
+        font-size: 48px;
+        font-weight: 600;
+        color: #2d3e50;
+        margin-bottom: 50px;
+        letter-spacing: 0.5px;
+    }
+
+    /* Buttons */
+    .btn-gradient {
+        background: linear-gradient(135deg, #0a6cff 0%, #4da3ff 100%);
+        color: white !important;
+        font-weight: 600;
+        padding: 16px 32px;
+        font-size: 20px;
+        border-radius: 8px;
+        border: none;
+        transition: all 0.25s ease;
+        box-shadow: 0 4px 12px rgba(10, 108, 255, 0.25);
+    }
+
+    .btn-gradient:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 18px rgba(10, 108, 255, 0.35);
+    }
+
+    /* Button layout */
+    .button-row {
+        display: flex;
+        justify-content: center;
+        gap: 40px;
+        flex-wrap: wrap;
+    }
+</style>
+
+<!-- Logout -->
+<a href="{% url 'authentication:logout' %}" class="logout-link">Logout</a>
+
+<!-- Main Content -->
+<div class="container welcome-wrapper">
+    <h1 class="welcome-title">Welcome Doctor</h1>
+
+    <div class="button-row">
+        <a href="{% url 'start_interview' 'existing' %}" class="btn-gradient">
+            Existing Patient
+        </a>
+
+        <a href="{% url 'start_interview' 'new' %}" class="btn-gradient">
+            New Patient
+        </a>
+    </div>
+</div>
+
 {% endblock %}
