@@ -1,0 +1,523 @@
+{% extends "base.html" %}
+{% block title %}Results - Edit FHIR Bundle{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Interview Results</h1>
+    <p class="text-muted">Review and edit the extracted information before saving.</p>
+
+    <form method="post" action="{% url 'update_bundle' %}" class="needs-validation" novalidate>
+        {% csrf_token %}
+
+        <!-- Patient Information -->
+        {% if patient %}
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-person-circle"></i> Patient Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="patient_name" class="form-label">Name</label>
+                        <input type="text" 
+                               class="form-control" 
+                               id="patient_name" 
+                               name="patient_name_patient" 
+                               value="{{ patient.name.0.text }}"
+                               required>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="patient_gender" class="form-label">Gender</label>
+                        <select class="form-select" 
+                                id="patient_gender" 
+                                name="patient_gender_patient">
+                            <option value="male" {% if patient.gender == "male" %}selected{% endif %}>Male</option>
+                            <option value="female" {% if patient.gender == "female" %}selected{% endif %}>Female</option>
+                            <option value="other" {% if patient.gender == "other" %}selected{% endif %}>Other</option>
+                            <option value="unknown" {% if patient.gender == "unknown" %}selected{% endif %}>Unknown</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="patient_identifier" class="form-label">ID Number</label>
+                        <input type="text" 
+                               class="form-control" 
+                               id="patient_identifier" 
+                               name="patient_identifier_patient" 
+                               value="{{ patient.identifier.0.value }}">
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Encounter Information -->
+        {% if encounter %}
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="bi bi-calendar-event"></i> Encounter Details</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="encounter_reason" class="form-label">Chief Complaint / Reason for Visit</label>
+                    <input type="text" 
+                           class="form-control" 
+                           id="encounter_reason" 
+                           name="encounter_reason_encounter" 
+                           value="{{ encounter.reasonCode.0.text }}">
+                </div>
+                <div class="mb-3">
+                    <span class="badge bg-secondary">Status: {{ encounter.status }}</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Observations -->
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-clipboard-data"></i> Observations & Symptoms</h5>
+                <button type="button" class="btn btn-light btn-sm" onclick="addObservation()">
+                    <i class="bi bi-plus-circle"></i> Add Observation
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="observations-container">
+                    {% for obs in observations %}
+                    <div class="observation-row mb-3 p-3 border rounded" data-index="{{ forloop.counter }}">
+                        <div class="row align-items-center">
+                            <div class="col-md-4 mb-2">
+                                <label class="form-label small">Observation Name</label>
+                                <input type="text" 
+                                       class="form-control form-control-sm" 
+                                       name="observation_code_obs-{{ forloop.counter }}" 
+                                       value="{{ obs.code.text }}"
+                                       placeholder="Observation name">
+                            </div>
+                            <div class="col-md-2 mb-2">
+                                <label class="form-label small">Present?</label>
+                                <select class="form-select form-select-sm observation-toggle" 
+                                        name="observation_present_obs-{{ forloop.counter }}"
+                                        onchange="toggleObservationValue(this)">
+                                    <option value="false" {% if obs.valueBoolean == False or not obs.valueString %}selected{% endif %}>No</option>
+                                    <option value="true" {% if obs.valueString or obs.valueBoolean == True %}selected{% endif %}>Yes</option>
+                                </select>
+                            </div>
+                            <div class="col-md-5 mb-2">
+                                <label class="form-label small">Details (if present)</label>
+                                <input type="text" 
+                                       class="form-control form-control-sm observation-value-input" 
+                                       name="observation_value_obs-{{ forloop.counter }}" 
+                                       value="{% if obs.valueString %}{{ obs.valueString }}{% endif %}"
+                                       placeholder="Additional details"
+                                       {% if not obs.valueString and obs.valueBoolean == False %}disabled{% endif %}>
+                            </div>
+                            <div class="col-md-1 mb-2 text-center">
+                                <button type="button" class="btn btn-danger btn-sm" onclick="removeObservation(this)" title="Remove">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Conditions -->
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-heart-pulse"></i> Medical Conditions</h5>
+                <button type="button" class="btn btn-dark btn-sm" onclick="addCondition()">
+                    <i class="bi bi-plus-circle"></i> Add Condition
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="conditions-container">
+                    {% for condition in conditions %}
+                    <div class="condition-row mb-3 p-3 border rounded" data-index="{{ forloop.counter }}">
+                        <div class="row align-items-center">
+                            <div class="col-md-6 mb-2">
+                                <label class="form-label small">Condition</label>
+                                <input type="text" 
+                                       class="form-control form-control-sm" 
+                                       name="condition_code_condition-{{ forloop.counter }}" 
+                                       value="{{ condition.code.text }}"
+                                       placeholder="Condition name">
+                            </div>
+                            <div class="col-md-5 mb-2">
+                                <label class="form-label small">Status</label>
+                                <select class="form-select form-select-sm" 
+                                        name="condition_status_condition-{{ forloop.counter }}">
+                                    <option value="active" {% if condition.clinicalStatus.text == "active" %}selected{% endif %}>Active</option>
+                                    <option value="inactive" {% if condition.clinicalStatus.text == "inactive" %}selected{% endif %}>Inactive</option>
+                                    <option value="resolved" {% if condition.clinicalStatus.text == "resolved" %}selected{% endif %}>Resolved</option>
+                                </select>
+                            </div>
+                            <div class="col-md-1 mb-2 text-center">
+                                <button type="button" class="btn btn-danger btn-sm" onclick="removeCondition(this)" title="Remove">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Medications -->
+        <div class="card mb-4">
+            <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-capsule"></i> Current Medications</h5>
+                <button type="button" class="btn btn-light btn-sm" onclick="addMedication()">
+                    <i class="bi bi-plus-circle"></i> Add Medication
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="medications-container">
+                    {% for medication in medications %}
+                    <div class="medication-row mb-3 p-3 border rounded" data-index="{{ forloop.counter }}">
+                        <div class="row align-items-center">
+                            <div class="col-md-6 mb-2">
+                                <label class="form-label small">Medication Name</label>
+                                <input type="text" 
+                                       class="form-control form-control-sm" 
+                                       name="medication_name_medication-{{ forloop.counter }}" 
+                                       value="{{ medication.medicationCodeableConcept.text }}"
+                                       placeholder="Medication name">
+                            </div>
+                            <div class="col-md-5 mb-2">
+                                <label class="form-label small">Status</label>
+                                <select class="form-select form-select-sm" 
+                                        name="medication_status_medication-{{ forloop.counter }}">
+                                    <option value="active" {% if medication.status == "active" %}selected{% endif %}>Active</option>
+                                    <option value="stopped" {% if medication.status == "stopped" %}selected{% endif %}>Stopped</option>
+                                </select>
+                            </div>
+                            <div class="col-md-1 mb-2 text-center">
+                                <button type="button" class="btn btn-danger btn-sm" onclick="removeMedication(this)" title="Remove">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Allergies -->
+        <div class="card mb-4">
+            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Allergies & Intolerances</h5>
+                <button type="button" class="btn btn-light btn-sm" onclick="addAllergy()">
+                    <i class="bi bi-plus-circle"></i> Add Allergy
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="allergies-container">
+                    {% for allergy in allergies %}
+                    <div class="allergy-row mb-3 p-3 border rounded" data-index="{{ forloop.counter }}">
+                        <div class="row align-items-center">
+                            <div class="col-md-5 mb-2">
+                                <label class="form-label small">Allergen</label>
+                                <input type="text" 
+                                       class="form-control form-control-sm" 
+                                       name="allergy_code_allergy-{{ forloop.counter }}" 
+                                       value="{{ allergy.code.text }}"
+                                       placeholder="Allergen">
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <label class="form-label small">Reaction</label>
+                                <input type="text" 
+                                       class="form-control form-control-sm" 
+                                       name="allergy_reaction_allergy-{{ forloop.counter }}" 
+                                       value="{% if allergy.reaction.0.manifestation.0.text %}{{ allergy.reaction.0.manifestation.0.text }}{% endif %}"
+                                       placeholder="Reaction">
+                            </div>
+                            <div class="col-md-1 mb-2 text-center">
+                                <button type="button" class="btn btn-danger btn-sm" onclick="removeAllergy(this)" title="Remove">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="d-flex justify-content-between mb-5">
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Cancel
+            </a>
+            <button type="submit" class="btn btn-primary btn-lg">
+                <i class="bi bi-save"></i> Save to Database
+            </button>
+        </div>
+    </form>
+
+    <!-- Raw JSON View (Collapsible) -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <a class="text-decoration-none text-dark" data-bs-toggle="collapse" href="#rawJsonCollapse" role="button" aria-expanded="false" aria-controls="rawJsonCollapse">
+                <i class="bi bi-code-square"></i> View Raw FHIR Bundle JSON
+                <i class="bi bi-chevron-down float-end"></i>
+            </a>
+        </div>
+        <div class="collapse" id="rawJsonCollapse">
+            <div class="card-body">
+                <pre class="bg-light p-3 rounded"><code id="jsonDisplay"></code></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .card-header {
+        font-weight: 600;
+    }
+    
+    .observation-row, .condition-row, .medication-row, .allergy-row {
+        background-color: #f8f9fa;
+        transition: background-color 0.2s;
+    }
+    
+    .observation-row:hover, .condition-row:hover, .medication-row:hover, .allergy-row:hover {
+        background-color: #e9ecef;
+    }
+    
+    pre {
+        max-height: 500px;
+        overflow-y: auto;
+        font-size: 0.875rem;
+    }
+</style>
+
+<!-- Hidden data elements for JavaScript -->
+<div id="template-data" 
+     data-obs-count="{{ observations|length }}"
+     data-cond-count="{{ conditions|length }}"
+     data-med-count="{{ medications|length }}"
+     data-allergy-count="{{ allergies|length }}"
+     style="display: none;"></div>
+
+<script type="text/javascript">
+    // Initialize counters from data attributes
+    const templateData = document.getElementById('template-data');
+    let obsCounter = parseInt(templateData.getAttribute('data-obs-count')) || 0;
+    let condCounter = parseInt(templateData.getAttribute('data-cond-count')) || 0;
+    let medCounter = parseInt(templateData.getAttribute('data-med-count')) || 0;
+    let allergyCounter = parseInt(templateData.getAttribute('data-allergy-count')) || 0;
+
+    // Toggle observation value input based on present/not present
+    function toggleObservationValue(selectElement) {
+        const valueInput = selectElement.closest('.observation-row').querySelector('.observation-value-input');
+        if (selectElement.value === 'true') {
+            valueInput.disabled = false;
+            valueInput.focus();
+        } else {
+            valueInput.disabled = true;
+            valueInput.value = '';
+        }
+    }
+
+    // Add new observation
+    function addObservation() {
+        obsCounter++;
+        const container = document.getElementById('observations-container');
+        const newRow = document.createElement('div');
+        newRow.className = 'observation-row mb-3 p-3 border rounded';
+        newRow.setAttribute('data-index', obsCounter);
+        newRow.innerHTML = `
+            <div class="row align-items-center">
+                <div class="col-md-4 mb-2">
+                    <label class="form-label small">Observation Name</label>
+                    <input type="text" 
+                           class="form-control form-control-sm" 
+                           name="observation_code_obs-${obsCounter}" 
+                           placeholder="Observation name">
+                </div>
+                <div class="col-md-2 mb-2">
+                    <label class="form-label small">Present?</label>
+                    <select class="form-select form-select-sm observation-toggle" 
+                            name="observation_present_obs-${obsCounter}"
+                            onchange="toggleObservationValue(this)">
+                        <option value="false" selected>No</option>
+                        <option value="true">Yes</option>
+                    </select>
+                </div>
+                <div class="col-md-5 mb-2">
+                    <label class="form-label small">Details (if present)</label>
+                    <input type="text" 
+                           class="form-control form-control-sm observation-value-input" 
+                           name="observation_value_obs-${obsCounter}" 
+                           placeholder="Additional details"
+                           disabled>
+                </div>
+                <div class="col-md-1 mb-2 text-center">
+                    <button type="button" class="btn btn-danger btn-sm" onclick="removeObservation(this)" title="Remove">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        container.appendChild(newRow);
+    }
+
+    // Remove observation
+    function removeObservation(button) {
+        if (confirm('Are you sure you want to remove this observation?')) {
+            button.closest('.observation-row').remove();
+        }
+    }
+
+    // Add new condition
+    function addCondition() {
+        condCounter++;
+        const container = document.getElementById('conditions-container');
+        const newRow = document.createElement('div');
+        newRow.className = 'condition-row mb-3 p-3 border rounded';
+        newRow.setAttribute('data-index', condCounter);
+        newRow.innerHTML = `
+            <div class="row align-items-center">
+                <div class="col-md-6 mb-2">
+                    <label class="form-label small">Condition</label>
+                    <input type="text" 
+                           class="form-control form-control-sm" 
+                           name="condition_code_condition-${condCounter}" 
+                           placeholder="Condition name">
+                </div>
+                <div class="col-md-5 mb-2">
+                    <label class="form-label small">Status</label>
+                    <select class="form-select form-select-sm" 
+                            name="condition_status_condition-${condCounter}">
+                        <option value="active" selected>Active</option>
+                        <option value="inactive">Inactive</option>
+                        <option value="resolved">Resolved</option>
+                    </select>
+                </div>
+                <div class="col-md-1 mb-2 text-center">
+                    <button type="button" class="btn btn-danger btn-sm" onclick="removeCondition(this)" title="Remove">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        container.appendChild(newRow);
+    }
+
+    // Remove condition
+    function removeCondition(button) {
+        if (confirm('Are you sure you want to remove this condition?')) {
+            button.closest('.condition-row').remove();
+        }
+    }
+
+    // Add new medication
+    function addMedication() {
+        medCounter++;
+        const container = document.getElementById('medications-container');
+        const newRow = document.createElement('div');
+        newRow.className = 'medication-row mb-3 p-3 border rounded';
+        newRow.setAttribute('data-index', medCounter);
+        newRow.innerHTML = `
+            <div class="row align-items-center">
+                <div class="col-md-6 mb-2">
+                    <label class="form-label small">Medication Name</label>
+                    <input type="text" 
+                           class="form-control form-control-sm" 
+                           name="medication_name_medication-${medCounter}" 
+                           placeholder="Medication name">
+                </div>
+                <div class="col-md-5 mb-2">
+                    <label class="form-label small">Status</label>
+                    <select class="form-select form-select-sm" 
+                            name="medication_status_medication-${medCounter}">
+                        <option value="active" selected>Active</option>
+                        <option value="stopped">Stopped</option>
+                    </select>
+                </div>
+                <div class="col-md-1 mb-2 text-center">
+                    <button type="button" class="btn btn-danger btn-sm" onclick="removeMedication(this)" title="Remove">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        container.appendChild(newRow);
+    }
+
+    // Remove medication
+    function removeMedication(button) {
+        if (confirm('Are you sure you want to remove this medication?')) {
+            button.closest('.medication-row').remove();
+        }
+    }
+
+    // Add new allergy
+    function addAllergy() {
+        allergyCounter++;
+        const container = document.getElementById('allergies-container');
+        const newRow = document.createElement('div');
+        newRow.className = 'allergy-row mb-3 p-3 border rounded';
+        newRow.setAttribute('data-index', allergyCounter);
+        newRow.innerHTML = `
+            <div class="row align-items-center">
+                <div class="col-md-5 mb-2">
+                    <label class="form-label small">Allergen</label>
+                    <input type="text" 
+                           class="form-control form-control-sm" 
+                           name="allergy_code_allergy-${allergyCounter}" 
+                           placeholder="Allergen">
+                </div>
+                <div class="col-md-6 mb-2">
+                    <label class="form-label small">Reaction</label>
+                    <input type="text" 
+                           class="form-control form-control-sm" 
+                           name="allergy_reaction_allergy-${allergyCounter}" 
+                           placeholder="Reaction">
+                </div>
+                <div class="col-md-1 mb-2 text-center">
+                    <button type="button" class="btn btn-danger btn-sm" onclick="removeAllergy(this)" title="Remove">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        container.appendChild(newRow);
+    }
+
+    // Remove allergy
+    function removeAllergy(button) {
+        if (confirm('Are you sure you want to remove this allergy?')) {
+            button.closest('.allergy-row').remove();
+        }
+    }
+
+    // Format JSON for display
+    document.addEventListener('DOMContentLoaded', function() {
+        const bundleData = JSON.parse('{{ bundle_json|escapejs }}');
+        const jsonDisplay = document.getElementById('jsonDisplay');
+        if (jsonDisplay && bundleData) {
+            jsonDisplay.textContent = JSON.stringify(bundleData, null, 2);
+        }
+    });
+    
+    // Bootstrap form validation
+    (function() {
+        'use strict';
+        var forms = document.querySelectorAll('.needs-validation');
+        Array.prototype.slice.call(forms).forEach(function(form) {
+            form.addEventListener('submit', function(event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    })();
+</script>
+{% endblock %}

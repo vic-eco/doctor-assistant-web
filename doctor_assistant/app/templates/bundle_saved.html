@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Bundle Saved{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-body text-center py-5">
+                    <div class="mb-4">
+                        <i class="bi bi-check-circle-fill text-success" style="font-size: 5rem;"></i>
+                    </div>
+                    <h2 class="card-title mb-3">FHIR Bundle Saved Successfully!</h2>
+                    <p class="card-text text-muted mb-4">
+                        The patient interview data has been successfully stored in the database.
+                    </p>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                        <a href="{% url 'home' %}" class="btn btn-primary btn-lg">
+                            <i class="bi bi-house-door"></i> Return Home
+                        </a>
+                        <!-- <a href="{% url 'results' %}" class="btn btn-outline-secondary btn-lg">
+                            <i class="bi bi-arrow-left"></i> Back to Results
+                        </a> -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

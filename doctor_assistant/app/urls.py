@@ -9,4 +9,8 @@ urlpatterns = [
 
 	path("record_interview/", views.record_interview, name="record_interview"),
 	path("save_audio/", views.save_audio, name="save_audio"),
+    path('results/', views.results, name='results'),
+    path('update-bundle/', views.update_bundle, name='update_bundle'),
+    path('bundle-saved/', views.bundle_saved, name='bundle_saved'),
+
 ]
