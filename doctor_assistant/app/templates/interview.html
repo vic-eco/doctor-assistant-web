@@ -72,7 +72,9 @@
           //Post audio to Django
           let formData = new FormData();
           formData.append("audio_file", audioData, "recording.mp3");
-		  formData.append("patient_id", "{{ interview.patient_id }}");
+		  formData.append("patient_identifier", "{{ interview.patient_id }}");
+		  formData.append("interview_type", "{{ interview.interview_type }}");
+		  formData.append("patient_resource_id", "{{ patient.id }}");
 
           fetch(saveAudioUrl, {
             method: "POST",
@@ -105,6 +107,8 @@
 	<h2>Recording Interview</h2>
 
 	<p><strong>Patient ID:</strong> {{ interview.patient_id }}</p>
+	{% if interview.interview_type == "existing" %}<p><strong>Patient Name:</strong> {{ patient.name.0.text }}</p>{% endif %}
+
 	<p><strong>Type:</strong> {{ interview.get_interview_type_display }}</p> 
 	<p>
     <button id="btnStart">START RECORDING</button>

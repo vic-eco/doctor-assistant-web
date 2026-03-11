@@ -1,11 +1,11 @@
-def build_encounter(encounter):
+def build_encounter(encounter, patient_reference):
     return {
 		"fullUrl": "urn:uuid:encounter",
 		"resource": {
 			"resourceType": "Encounter",
 			"status": "finished",
 			"subject": {
-				"reference": "urn:uuid:patient"
+				"reference": patient_reference
 			},
 			"reasonCode": [
 				{

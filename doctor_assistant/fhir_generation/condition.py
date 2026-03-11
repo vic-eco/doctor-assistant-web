@@ -1,4 +1,4 @@
-def build_conditions(conditions):
+def build_conditions(conditions, patient_reference):
     result = []
 
     for i, c in enumerate(conditions):
@@ -7,7 +7,7 @@ def build_conditions(conditions):
             "resource": {
 				"resourceType": "Condition",
 				"subject": {
-					"reference": "urn:uuid:patient",
+					"reference": patient_reference,
 				},
 				"code": {
 					"text": c["text"]

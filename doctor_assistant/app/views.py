@@ -12,6 +12,8 @@ import re
 import json
 from pprint import pprint
 import ast
+import requests
+import sys
 
 
 from fhir_generation.allergy import build_allergies
@@ -22,7 +24,7 @@ from fhir_generation.medication import build_medications
 from fhir_generation.observation import build_observations
 from fhir_generation.patient import build_patient
 
-from medgemma_local import run_model
+from .medgemma_local import run_model
 
 from app.models import Interview
 
@@ -52,8 +54,13 @@ def enter_patient_id(request, interview_id):
 def record_interview(request, interview_id):
     interview = get_object_or_404(Interview, id=interview_id)
 
+    patient = {}
+    if interview.interview_type == Interview.EXISTING:
+        patient = _get_patient_by_identifier(interview.patient_id)
+
     context = {
         "interview": interview,
+        "patient": patient
     }
 
     return render(request, "interview.html", context)
@@ -61,67 +68,54 @@ def record_interview(request, interview_id):
 def save_audio(request):
     if request.method == "POST" and request.FILES.get("audio_file"):
         audio_file = request.FILES["audio_file"]
-        patient_id = request.POST.get("patient_id")
+        patient_identifier = request.POST.get("patient_identifier")
+        interview_type = request.POST.get("interview_type")
 
-        #TODO Send audio to HPC and retrieve transcript, then pass transcript through model
+        transcript = _hpc_call(audio_file)
+        result = run_model(transcript)
+    
+        if interview_type == Interview.NEW:
+            patient_reference = "urn:uuid:patient"
+            patient = build_patient(result["patient"], patient_identifier)
+        else:
+            patient_resource_id = request.POST.get("patient_resource_id")
+            request.session["patient_resource_id"] = patient_resource_id 
+            request.session.modified = True
+            patient_reference = f"Patient/{patient_resource_id}"
         
-        # result = _hpc_call(audio_file)
-        #result = run_model()
+        encounter = build_encounter(result["encounter"], patient_reference)
+        observations = build_observations(result["symptoms"], patient_reference)
+        conditions = build_conditions(result["conditions"], patient_reference)
+        meds = build_medications(result["medications"], patient_reference)
+        allergies = build_allergies(result["allergies"], patient_reference)
 
-        data = """{'allergies': [{'reaction': 'rash', 'text': 'penicillin'}],
- 'conditions': [{'text': 'high blood pressure'}],
- 'encounter': {'reason': 'chest pain since this morning'},
- 'medications': [{'status': 'active', 'text': 'amlodipine'}],
- 'patient': {'age': 54, 'gender': 'Male', 'name': 'John Miller'},
- 'symptoms': [{'duration': 'since this morning',
-               'present': True,
-               'severity': 'moderate',
-               'text': 'chest pain'},
-              {'duration': None,
-               'present': False,
-               'severity': None,
-               'text': 'shortness of breath'},
-              {'duration': None,
-               'present': False,
-               'severity': None,
-               'text': 'fever'},
-              {'duration': None,
-               'present': False,
-               'severity': None,
-               'text': 'cough'}]}"""
-        
-        result = ast.literal_eval(data)
+        if interview_type == Interview.NEW:
+            bundle = build_bundle(
+                [patient, encounter] +
+                observations +
+                conditions +
+                meds +
+                allergies
+            )
+        else:
+            bundle = build_bundle(
+                [encounter] +
+                observations +
+                conditions +
+                meds +
+                allergies
+            )
 
-        print("converted Result")
-        
-        patient = build_patient(result["patient"], patient_id)
-        encounter = build_encounter(result["encounter"])
-        observations = build_observations(result["symptoms"])
-        conditions = build_conditions(result["conditions"])
-        meds = build_medications(result["medications"])
-        allergies = build_allergies(result["allergies"])
-
-        bundle = build_bundle(
-            [patient, encounter] +
-            observations +
-            conditions +
-            meds +
-            allergies
-        )
-
-        # print("RESULT:\n")
-        # pprint(result)
-        # print()
-        print("BUNDLE:\n")
-        pprint(bundle)
+        print("BUNDLE")
+        print(bundle)
 
         request.session["bundle"] = bundle 
-        print("Moving to results")
+        request.session.modified = True
+
         return JsonResponse({
             "success": True,
             "redirect_url": reverse("results")
-        })        # return render(request, "results.html", {"bundle": bundle})
-        # return JsonResponse({"json_res": result, "bundle": bundle})
+        }) 
     
     return JsonResponse({"status": "error", "message": "Invalid request"}, status=400)
 
@@ -201,10 +195,18 @@ def update_bundle(request):
     patient_name = request.POST.get("patient_name_patient")
     patient_gender = request.POST.get("patient_gender_patient")
     patient_identifier = request.POST.get("patient_identifier_patient")
+
+    #TODO Check if this works 
+
+    patient_resource_id = request.session.get("patient_resource_id")
+    if isinstance(patient_resource_id, str) and patient_resource_id.isdigit():
+        patient_reference = f"Patient/{patient_resource_id}"
+    else:
+        patient_reference = "urn:uuid:patient"
     
     if patient_name:
         new_entries.append({
-            "fullUrl": "urn:uuid:patient",
+            "fullUrl": patient_reference,
             "resource": {
                 "resourceType": "Patient",
                 "identifier": [
@@ -236,7 +238,7 @@ def update_bundle(request):
                 "resourceType": "Encounter",
                 "status": "finished",
                 "subject": {
-                    "reference": "urn:uuid:patient"
+                    "reference": patient_reference
                 },
                 "reasonCode": [
                     {
@@ -282,7 +284,7 @@ def update_bundle(request):
                 "text": obs_code
             },
             "subject": {
-                "reference": "urn:uuid:patient"
+                "reference": patient_reference
             },
             "encounter": {
                 "reference": "urn:uuid:encounter"
@@ -335,7 +337,7 @@ def update_bundle(request):
             "resource": {
                 "resourceType": "Condition",
                 "subject": {
-                    "reference": "urn:uuid:patient"
+                    "reference": patient_reference
                 },
                 "code": {
                     "text": cond_code
@@ -377,7 +379,7 @@ def update_bundle(request):
                 "resourceType": "MedicationStatement",
                 "status": med_status,
                 "subject": {
-                    "reference": "urn:uuid:patient"
+                    "reference": patient_reference
                 },
                 "medicationCodeableConcept": {
                     "text": med_name
@@ -415,7 +417,7 @@ def update_bundle(request):
             "resource": {
                 "resourceType": "AllergyIntolerance",
                 "patient": {
-                    "reference": "urn:uuid:patient"
+                    "reference": patient_reference
                 },
                 "code": {
                     "text": allergy_code
@@ -446,15 +448,85 @@ def update_bundle(request):
     request.session.modified = True
     
     # Save to database
-    print("Updated Bundle")
-    pprint(bundle)    
-    return redirect("bundle_saved")  # Or wherever you want to redirect after saving
+    try:
+        result = _save_bundle(bundle)
+        print("Success!")
+        print(result)
+
+    except requests.exceptions.HTTPError as e:
+        print("HTTP error occurred:")
+        print(f"Status code: {e.response.status_code}")
+        return redirect("bundle_failed", error_type=f"HTTP Error {e.response.status_code}")
+
+    except requests.exceptions.ConnectionError:
+        print("Connection error: Is the FHIR server running?")
+        return redirect("bundle_failed", error_type=f"Connection Error")
+
+    except requests.exceptions.Timeout:
+        print("Request timed out")
+        return redirect("bundle_failed", error_type=f"Request Time-Out")
 
 
+    except requests.exceptions.RequestException as e:
+        print("Unexpected error:", str(e))
+        return redirect("bundle_failed", error_type=f"Unexpected error:")
+
+    return redirect("bundle_saved")
 
 def bundle_saved(request):
     """Confirmation page after bundle is saved"""
     return render(request, "bundle_saved.html")
+
+def bundle_failed(request, err):
+    context = {
+        "error_type": err
+    }
+    return render(request, "bundle_failed.html", context)
+
+def _save_bundle(data):
+    url = "http://localhost:8080/fhir"
+    
+    headers = {
+        "Content-Type": "application/fhir+json"
+    }
+    
+    response = requests.post(url, headers=headers, json=data)
+    
+    # Raise error if request failed
+    response.raise_for_status()
+    
+    return response.json()
+
+def _get_patient_by_identifier(identifier_value: str):
+    url = "http://localhost:8080/fhir/Patient"
+    
+    params = {
+        "identifier": f"http://national-id|{identifier_value}"
+    }
+
+    headers = {
+        "Accept": "application/fhir+json"
+    }
+
+    response = requests.get(
+        url,
+        headers=headers,
+        params=params,
+        timeout=10
+    )
+
+    response.raise_for_status()
+
+    bundle = response.json()
+
+    # FHIR search returns a Bundle
+    entries = bundle.get("entry", [])
+
+    if not entries:
+        return None
+
+    # Usually identifier is unique → take first match
+    return entries[0]["resource"]
 
 def _hpc_call(audio_file):
 
@@ -519,12 +591,12 @@ def _hpc_call(audio_file):
 
     with sftp.file(remote_output, "r") as remote_file:
         file_content = remote_file.read().decode()   # read as string
-        data = json.loads(file_content)
+        # data = json.loads(file_content)
 
     sftp.close()
     ssh.close()
 
-    return data
+    return file_content
 
     # # Read and print output
     # with open(local_output, "r") as f:

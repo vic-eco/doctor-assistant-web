@@ -12,5 +12,7 @@ urlpatterns = [
     path('results/', views.results, name='results'),
     path('update-bundle/', views.update_bundle, name='update_bundle'),
     path('bundle-saved/', views.bundle_saved, name='bundle_saved'),
+	path('bundle-failed/', views.bundle_failed, name='bundle_failed'),
+
 
 ]

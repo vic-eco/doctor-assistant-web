@@ -3,6 +3,8 @@ import json
 from typing import List, Dict, Any
 from django.conf import settings
 
+from .llm_loader import get_llm
+
 
 # ---------------------------------------------------------
 # JSON REPAIR (fixes truncated JSON)
@@ -151,7 +153,7 @@ def process_transcript(transcript: str, llm: Llama, use_chunking: bool = False) 
     base_prompt = """Extract only explicitly stated facts from the text.
 Do not infer diagnoses.
 Do not add medical knowledge.
-If symptons are negative include them with a false present value.
+If patient states that they do not have a specific symptom include it with a false present value.
 Return ONLY valid JSON.
 
 Schema:
@@ -221,44 +223,39 @@ JSON:
 # MAIN
 # ---------------------------------------------------------
 
-def run_model():
-    model_path = settings.BASE_DIR / "model_files" / "medgemma-1.5-4b-it-Q4_K_M.gguf"
+def run_model(transcript):
+    
+    print("RUN MODEL")
+    llm = get_llm()
+    print("GOT LLM, CONTINUING")
 
-    print("Loading MedGemma GGUF model...")
-    llm = Llama(
-        model_path=str(model_path),
-        n_ctx=4096,
-        n_threads=8,
-        n_gpu_layers=0
-    )
-    print("Model loaded.\n")
-
-    transcript = """
-Doctor: Hello, I'm Dr. Brown. Can you confirm your name and age?
-Patient: Yes, my name is John Miller. I'm 54 years old.
-Doctor: And your gender?
-Patient: Male.
-Doctor: What brings you in today?
-Patient: I've been having chest pain since this morning, about two hours now.
-Doctor: Can you describe the pain?
-Patient: It feels tight, maybe moderate. It gets worse when I walk.
-Doctor: Any shortness of breath?
-Patient: No, no shortness of breath.
-Doctor: Fever or cough?
-Patient: No fever and no cough.
-Doctor: Do you have any medical conditions?
-Patient: I have high blood pressure.
-Doctor: Are you taking any medications?
-Patient: Yes, I take amlodipine every day.
-Doctor: Any allergies?
-Patient: I'm allergic to penicillin. I once had a rash from it.
-Doctor: Alright, we'll take a closer look today.
-"""
+#     transcript = """
+# Hello, I'm Dr. Brown. Can you confirm your name and age?
+# Yes, my name is John Miller. I'm 54 years old.
+# And your gender?
+# Male.
+# What brings you in today?
+# I've been having chest pain since this morning, about two hours now.
+# Can you describe the pain?
+# It feels tight, maybe moderate. It gets worse when I walk.
+# Any shortness of breath?
+# No, no shortness of breath.
+# Fever or cough?
+# No fever and no cough.
+# Do you have any medical conditions?
+# I have high blood pressure.
+# Are you taking any medications?
+# Yes, I take amlodipine every day.
+# Any allergies?
+# I'm allergic to penicillin. I once had a rash from it.
+# Alright, we'll take a closer look today.
+# """
 
     use_chunking = len(transcript.split()) > 500
 
+    print("GENERATING")
     result = process_transcript(transcript, llm, use_chunking)
-
+    print("GENERATED")
     # print("\nFINAL EXTRACTED INFORMATION:")
     # print(json.dumps(result, indent=2))
 

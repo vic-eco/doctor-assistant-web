@@ -1,4 +1,4 @@
-def build_medications(meds):
+def build_medications(meds, patient_reference):
     result = []
 
     for i, m in enumerate(meds):
@@ -8,7 +8,7 @@ def build_medications(meds):
 				"resourceType": "MedicationStatement",
 				"status": m.get("status", "active"),
 				"subject": {
-					"reference": "urn:uuid:patient"
+					"reference": patient_reference
 				},
 				"medicationCodeableConcept": {
 					"text": m["text"]

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Bundle Saved{% endblock %}
+{% block title %}Bundle Failed{% endblock %}
 
 {% block content %}
 <div class="container mt-5">
@@ -10,9 +10,9 @@
                     <div class="mb-4">
                         <i class="bi bi-check-circle-fill text-success" style="font-size: 5rem;"></i>
                     </div>
-                    <h2 class="card-title mb-3">FHIR Bundle Saved Successfully!</h2>
+                    <h2 class="card-title mb-3">Error {{error_type}}</h2>
                     <p class="card-text text-muted mb-4">
-                        The patient interview data has been successfully stored in the database.
+                        FHIR Failed to Save
                     </p>
                     <div class="d-grid gap-2 d-md-flex justify-content-md-center">
                         <a href="{% url 'home' %}" class="btn btn-primary btn-lg">

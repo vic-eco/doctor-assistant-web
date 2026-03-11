@@ -1,4 +1,4 @@
-def build_allergies(allergies):
+def build_allergies(allergies, patient_reference):
     result = []
 
     for i, a in enumerate(allergies):
@@ -7,7 +7,7 @@ def build_allergies(allergies):
             "resource": {
 				"resourceType": "AllergyIntolerance",
 				"patient": {
-					"reference": "urn:uuid:patient"
+					"reference": patient_reference
 				},
 				"code": {
 					"text": a["text"]

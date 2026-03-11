@@ -8,6 +8,7 @@ django = "*"
 paramiko = "*"
 django-environ = "*"
 llama-cpp-python = "*"
+requests = "*"
 
 [dev-packages]
 

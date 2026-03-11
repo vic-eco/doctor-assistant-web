@@ -1,4 +1,4 @@
-def build_observations(symptoms):
+def build_observations(symptoms, patient_reference):
     observations = []
 
     for i, s in enumerate(symptoms):
@@ -11,7 +11,7 @@ def build_observations(symptoms):
 					"text": s["text"]
 				},
 				"subject": {
-					"reference": "urn:uuid:patient"
+					"reference": patient_reference
 				},
 				"encounter": {
 					"reference": "urn:uuid:encounter"
