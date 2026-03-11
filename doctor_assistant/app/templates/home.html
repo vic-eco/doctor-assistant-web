@@ -1,88 +1,249 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %} Home {% endblock %}
 
 {% block content %}
 <style>
-    body {
-        background: #f7faff;
-        font-family: 'Roboto', sans-serif;
-        margin: 0;
-        padding: 0;
-    }
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700&display=swap');
 
-    /* Logout top-right */
-    .logout-link {
-        position: absolute;
-        top: 25px;
-        right: 40px;
-        font-size: 16px;
-        font-weight: 500;
-        color: #0a6cff;
-        text-decoration: none;
-        transition: 0.2s;
-    }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    .logout-link:hover {
-        color: #084fb8;
-    }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #eaeaea;
+    min-height: 100vh;
+  }
 
-    /* Welcome section */
-    .welcome-wrapper {
-        margin-top: 160px;
-        text-align: center;
-    }
+  /* ── Navbar ── */
+  .navbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #fff;
+    border-bottom: 2.5px solid #1a6fff;
+    padding: 0 28px;
+    height: 58px;
+  }
 
-    .welcome-title {
-        font-size: 48px;
-        font-weight: 600;
-        color: #2d3e50;
-        margin-bottom: 50px;
-        letter-spacing: 0.5px;
-    }
+  .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #111;
+    letter-spacing: -0.02em;
+    text-decoration: none;
+  }
 
-    /* Buttons */
-    .btn-gradient {
-        background: linear-gradient(135deg, #0a6cff 0%, #4da3ff 100%);
-        color: white !important;
-        font-weight: 600;
-        padding: 16px 32px;
-        font-size: 20px;
-        border-radius: 8px;
-        border: none;
-        transition: all 0.25s ease;
-        box-shadow: 0 4px 12px rgba(10, 108, 255, 0.25);
-    }
+  .nav-brand .cross-icon {
+    width: 32px;  /* ← change to resize navbar icon */
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
 
-    .btn-gradient:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 18px rgba(10, 108, 255, 0.35);
-    }
+  .nav-brand .cross-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
 
-    /* Button layout */
-    .button-row {
-        display: flex;
-        justify-content: center;
-        gap: 40px;
-        flex-wrap: wrap;
-    }
+  .btn-logout {
+    background: #1a6fff;
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 22px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s, box-shadow 0.15s;
+    box-shadow: 0 2px 8px rgba(26,111,255,0.25);
+  }
+
+  .btn-logout:hover {
+    background: #0f56d6;
+    box-shadow: 0 4px 14px rgba(26,111,255,0.35);
+  }
+
+  /* ── Main content ── */
+  .main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 80px;
+    padding-bottom: 60px;
+  }
+
+  .welcome-title {
+    font-size: 42px;
+    font-weight: 700;
+    color: #1a1a1a;
+    letter-spacing: -0.03em;
+    margin-bottom: 6px;
+  }
+
+  .welcome-sub {
+    font-size: 15px;
+    color: #777;
+    font-weight: 400;
+    margin-bottom: 52px;
+    letter-spacing: 0.01em;
+  }
+
+  /* ── Cards ── */
+  .card-row {
+    display: flex;
+    gap: 28px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .action-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 32px 28px 28px;
+    width: 380px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+
+  .action-card:hover {
+    box-shadow: 0 6px 24px rgba(0,0,0,0.11);
+    transform: translateY(-2px);
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 18px;
+    flex: 1;
+  }
+
+  .card-text {
+    white-space: nowrap;
+  }
+
+  .card-icon {
+    width: 42px;  /* ← change to resize card icons */
+    height: 42px;
+    flex-shrink: 0;
+    object-fit: contain;
+  }
+
+  .card-text .card-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #111;
+    letter-spacing: -0.02em;
+  }
+
+  .card-text .card-sub {
+    font-size: 13px;
+    color: #888;
+    font-weight: 400;
+    margin-top: 2px;
+  }
+
+  .btn-card-primary {
+    display: block;
+    text-align: center;
+    background: #1a6fff;
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 0;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s;
+    box-shadow: 0 2px 8px rgba(26,111,255,0.2);
+    letter-spacing: 0.01em;
+  }
+
+  .btn-card-primary:hover {
+    background: #0f56d6;
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(26,111,255,0.32);
+  }
+
+  .btn-card-secondary {
+    display: block;
+    text-align: center;
+    background: #fff;
+    color: #111;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    border: 1.5px solid #d0d0d0;
+    border-radius: 8px;
+    padding: 12px 0;
+    text-decoration: none;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    letter-spacing: 0.01em;
+  }
+
+  .btn-card-secondary:hover {
+    border-color: #1a6fff;
+    background: #f0f6ff;
+    box-shadow: 0 2px 8px rgba(26,111,255,0.1);
+  }
 </style>
 
-<!-- Logout -->
-<a href="{% url 'authentication:logout' %}" class="logout-link">Logout</a>
-
-<!-- Main Content -->
-<div class="container welcome-wrapper">
-    <h1 class="welcome-title">Welcome Doctor</h1>
-
-    <div class="button-row">
-        <a href="{% url 'start_interview' 'existing' %}" class="btn-gradient">
-            Existing Patient
-        </a>
-
-        <a href="{% url 'start_interview' 'new' %}" class="btn-gradient">
-            New Patient
-        </a>
+<!-- Navbar -->
+<nav class="navbar">
+  <a href="{% url 'home' %}" class="nav-brand">
+    <div class="cross-icon">
+      <img src="{% static 'images/cross-icon.png' %}" alt="DocAssistant logo">
     </div>
+    DocAssistant
+  </a>
+  <a href="{% url 'authentication:logout' %}" class="btn-logout">Logout</a>
+</nav>
+
+<!-- Main -->
+<div class="main">
+  <h1 class="welcome-title">Welcome Doctor</h1>
+  <p class="welcome-sub">AI assistant for medical records</p>
+
+  <div class="card-row">
+
+    <!-- New Patient Card -->
+    <div class="action-card">
+      <div class="card-header">
+        <img src="{% static 'images/stethoscope-icon.png' %}" alt="Stethoscope" class="card-icon">
+        <div class="card-text">
+          <div class="card-title">New Patient Interview</div>
+          <div class="card-sub">Record and Generate medical record</div>
+        </div>
+      </div>
+      <a href="{% url 'start_interview' 'new' %}" class="btn-card-primary">Start Interview</a>
+    </div>
+
+    <!-- Existing Patient Card -->
+    <div class="action-card">
+      <div class="card-header">
+        <img src="{% static 'images/folder-icon.png' %}" alt="Folder" class="card-icon">
+        <div class="card-text">
+          <div class="card-title">Existing Patient Interview</div>
+          <div class="card-sub">Record new Interview</div>
+        </div>
+      </div>
+      <a href="{% url 'start_interview' 'existing' %}" class="btn-card-secondary">View Patients</a>
+    </div>
+
+  </div>
 </div>
 
 {% endblock %}
