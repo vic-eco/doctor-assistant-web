@@ -2,7 +2,40 @@
 {% block title %} Patient Identification {% endblock %}
 
 {% block content %}
+<style>
 
+	body{
+		background: #eaeaea;
+	}
+	.btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		background: #1a6fff;
+		border: none;
+		border-radius: 10px;
+		padding: 13px 30px;
+		font-family: 'DM Sans', sans-serif;
+		font-size: 15px;
+		font-weight: 600;
+		color: #fff;
+		cursor: pointer;
+		transition: background 0.15s, box-shadow 0.15s, opacity 0.2s;
+		box-shadow: 0 2px 8px rgba(229,57,53,0.25);
+		margin-top:20px;
+	}
+
+	.btn:hover:not(:disabled) {
+		background: #1a6fff;
+		color: white;
+		box-shadow: 0 7px 14px rgba(49, 46, 46, 0.471);
+	}
+
+	.btn:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
+	}
+</style>
 <div style="max-width:500px; margin:60px auto;">
 
   <h2>
@@ -27,7 +60,7 @@
       placeholder="Enter patient ID"
     >
 
-    <button type="submit" style="margin-top:20px;">
+    <button type="submit" class="btn">
       Continue to Recording
     </button>
   </form>

@@ -3,6 +3,8 @@ from django.http import HttpResponse, JsonResponse
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.urls import reverse
+from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 
 
 import uuid
@@ -14,6 +16,7 @@ from pprint import pprint
 import ast
 import requests
 import sys
+import re
 
 
 from fhir_generation.allergy import build_allergies
@@ -29,10 +32,46 @@ from .medgemma_local import run_model
 from app.models import Interview
 
 
-# Create your views here.
+@login_required
 def home(request):
 	return render(request, "home.html")
 
+@login_required
+def view_existing_patients(request):
+    search_type = request.GET.get("search_type") or ""
+    query = request.GET.get("query") or ""  
+ 
+    if search_type and query:
+        patients = _get_patients(search_type, query)
+    else:
+        patients = _get_patients()
+ 
+    #This works fine for small datasets. For larger move pagination to FHIR server
+    paginator = Paginator(patients, 5)  # 5 patients per page
+    page_number = request.GET.get("page", 1)
+    page_obj = paginator.get_page(page_number)
+ 
+    return render(
+        request,
+        "existing_patients.html",
+        {
+            "patients": page_obj,
+            "page": page_obj.number,
+            "total_pages": paginator.num_pages,
+            "search_type": search_type,
+            "query": query,
+        }
+    )
+
+@login_required
+def view_patient_details(request, patient_id):
+
+    details = _get_patient_details(patient_id)
+    print(details)
+    
+    return render(request, "patient_details.html", details)
+
+@login_required
 def start_interview(request, type):
     interview = Interview.objects.create(
         doctor=request.user,
@@ -41,6 +80,17 @@ def start_interview(request, type):
 
     return redirect("enter_patient_id", interview_id=interview.id)
 
+@login_required
+def start_interview_existing(request, patient_id):
+    interview = Interview.objects.create(
+        doctor=request.user,
+        interview_type=Interview.EXISTING,
+        patient_id=patient_id
+    )
+
+    return redirect("record_interview", interview_id=interview.id)
+
+@login_required
 def enter_patient_id(request, interview_id):
     interview = Interview.objects.get(id=interview_id)
 
@@ -51,6 +101,7 @@ def enter_patient_id(request, interview_id):
 
     return render(request, "identification.html", {"interview": interview})
 
+@login_required
 def record_interview(request, interview_id):
     interview = get_object_or_404(Interview, id=interview_id)
 
@@ -65,6 +116,7 @@ def record_interview(request, interview_id):
 
     return render(request, "interview.html", context)
 
+@login_required
 def save_audio(request):
     if request.method == "POST" and request.FILES.get("audio_file"):
         audio_file = request.FILES["audio_file"]
@@ -119,6 +171,7 @@ def save_audio(request):
     
     return JsonResponse({"status": "error", "message": "Invalid request"}, status=400)
 
+@login_required
 def results(request):
     """Display the FHIR bundle for editing"""
     print("DEBUG: Results view called")
@@ -173,8 +226,8 @@ def results(request):
     return render(request, "results.html", context)
 
 
+@login_required
 def update_bundle(request):
-    """Update the FHIR bundle with edited values"""
     bundle = request.session.get("bundle")
     
     if not bundle:
@@ -473,10 +526,12 @@ def update_bundle(request):
 
     return redirect("bundle_saved")
 
+@login_required
 def bundle_saved(request):
     """Confirmation page after bundle is saved"""
     return render(request, "bundle_saved.html")
 
+@login_required
 def bundle_failed(request, err):
     context = {
         "error_type": err
@@ -484,7 +539,7 @@ def bundle_failed(request, err):
     return render(request, "bundle_failed.html", context)
 
 def _save_bundle(data):
-    url = "http://localhost:8080/fhir"
+    url = settings.FHIR_URL
     
     headers = {
         "Content-Type": "application/fhir+json"
@@ -498,7 +553,7 @@ def _save_bundle(data):
     return response.json()
 
 def _get_patient_by_identifier(identifier_value: str):
-    url = "http://localhost:8080/fhir/Patient"
+    url = f"{settings.FHIR_URL}/Patient"
     
     params = {
         "identifier": f"http://national-id|{identifier_value}"
@@ -525,8 +580,154 @@ def _get_patient_by_identifier(identifier_value: str):
     if not entries:
         return None
 
-    # Usually identifier is unique → take first match
     return entries[0]["resource"]
+
+def _get_patients(search_type=None, query=None):
+    url = f"{settings.FHIR_URL}/Patient"
+
+    params = {}
+    
+    if search_type and query:
+        if search_type == 'name':
+            search_type = f"{search_type}:contains="
+        params[search_type] = query
+
+    headers = { 
+        "Accept": "application/fhir+json"
+    }
+
+    response = requests.get(
+        url,
+        headers=headers,
+        params=params,
+        timeout=10
+    )
+
+    response.raise_for_status()
+
+    bundle = response.json()
+
+    entries = bundle.get("entry", [])
+
+    if not entries:
+        return []
+    
+    res = []
+    obj = {}
+    for entry in entries:
+        obj = {
+            "patient_rec_id": entry["resource"]["id"],
+            "patient_identifier": entry["resource"]["identifier"][0]["value"],
+            "patient_name": entry["resource"]["name"][0]["text"],
+            "gender": entry["resource"]["gender"]
+        }
+
+        res.append(obj)
+    
+    return res
+
+def _get_patient_details(id: str):
+
+    url = f"{settings.FHIR_URL}/Patient/{id}/$everything"
+
+    headers = { 
+        "Accept": "application/fhir+json"
+    }
+
+    response = requests.get(
+        url,
+        headers,
+        timeout=10
+    )
+
+    response.raise_for_status()
+
+    bundle = response.json()
+
+    entries = bundle.get("entry", [])
+
+    encounters = []
+    observations = []
+    conditions = []
+    medications = []
+    allergies = []
+
+    patient_name = ""
+    patient_identifier=""
+
+    for entry in entries:
+        match entry["resource"]["resourceType"]:
+            case "Patient":
+                patient_name = entry["resource"]["name"][0]["text"]
+                patient_identifier = entry["resource"]["identifier"][0]["value"]
+            case "Encounter":
+                encounters.append(_build_encounter_obj(entry))
+            case "Observation":
+                observations.append(_build_observation_obj(entry))
+            case "Condition":
+                conditions.append(_build_condition_obj(entry))
+            case "MedicationStatement":
+                medications.append(_build_medication_obj(entry))
+            case "AllergyIntolerance":
+                allergies.append(_build_allergy_obj(entry))
+    
+    encounter_lookup = {e["url"]: e for e in encounters}
+    for obs in observations:
+        if obs["reference"] in encounter_lookup:
+            encounter_lookup[obs["reference"]]["observations"].append(obs)
+
+    return {
+        "patient_name": patient_name,
+        "patient_identifier": patient_identifier,
+        "encounters": _sort_by_date(encounters),
+        "conditions": _sort_by_date(conditions),
+        "medications": _sort_by_date(medications),
+        "allergies": _sort_by_date(allergies),
+    }
+
+def _build_encounter_obj(entry):
+    url = re.search("Encounter/\d+", entry["fullUrl"])
+    url = url.group()
+    return{
+        "url": url,
+        "status": entry["resource"]["status"],
+        "reason": entry["resource"]["reasonCode"][0]["text"],
+        "last_updated": entry["resource"]["meta"]["lastUpdated"],
+        "observations": []
+    }
+
+def _build_observation_obj(entry):
+    resource = entry["resource"]
+    return{
+        "text": resource["code"]["text"],
+        "notes_string": resource.get("valueString"),
+        "notes_boolean": resource.get("valueBoolean"),
+        "reference": resource["encounter"]["reference"]
+    }
+
+def _build_condition_obj(entry):
+    return{
+        "text": entry["resource"]["code"]["text"],
+        "status": entry["resource"]["clinicalStatus"]["text"],
+        "last_updated": entry["resource"]["meta"]["lastUpdated"]
+    }
+
+def _build_medication_obj(entry):
+    return{
+        "text": entry["resource"]["medicationCodeableConcept"]["text"],
+        "status": entry["resource"]["status"],
+        "last_updated": entry["resource"]["meta"]["lastUpdated"]
+    }
+
+def _build_allergy_obj(entry):
+    return{
+        "text": entry["resource"]["code"]["text"],
+        "reaction": entry["resource"]["reaction"][0]["manifestation"][0]["text"],
+        "last_updated": entry["resource"]["meta"]["lastUpdated"]
+    }
+
+def _sort_by_date(items):
+    return sorted(items, key=lambda x: x.get("last_updated") or "", reverse=True)
 
 def _hpc_call(audio_file):
 

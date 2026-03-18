@@ -128,8 +128,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-LOGIN_URL = 'authentication/login'
-
+LOGIN_URL = '/auth/login'
+LOGIN_REDIRECT_URL = 'home'
+LOGOUT_REDIRECT_URL = 'login'
 
 env = environ.Env()
 env.read_env(os.path.join(BASE_DIR, '.env')) 
@@ -139,3 +140,4 @@ SSH_USER=env("SSH_USER")
 SSH_KEY_PATH=env("SSH_KEY_PATH")
 REMOTE_OUTPUT_PATH=env("REMOTE_OUTPUT_PATH")
 REMOTE_INPUT_PATH=env("REMOTE_INPUT_PATH")
+FHIR_URL=env("FHIR_URL")

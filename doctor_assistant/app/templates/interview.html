@@ -332,7 +332,7 @@
         for (let i = 0; i < bars; i++) {
           const x = i * (barW + gap);
           const barH = 8 + Math.sin(i * 0.4) * 6 + Math.cos(i * 0.7) * 5;
-          ctx.fillStyle = '#e8a0a0';
+          ctx.fillStyle = '#1a6fff';
           ctx.beginPath();
           ctx.roundRect(x, (h - barH) / 2, barW, barH, 2);
           ctx.fill();
@@ -366,7 +366,7 @@
           const r = Math.floor(180 + intensity * 50);
           const g = Math.floor(40 - intensity * 30);
           const b = Math.floor(40 - intensity * 30);
-          ctx.fillStyle = `rgb(${r},${g},${b})`;
+          ctx.fillStyle = `#1a6fff`;
           ctx.beginPath();
           ctx.roundRect(x, y, barW, barH, 1);
           ctx.fill();
@@ -455,21 +455,10 @@
 {% block content %}
 <div class="page-wrapper">
 
-  <!-- Top bar with back button -->
-  <div class="top-bar">
-    <a href="{% url 'home' %}" class="back-btn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="15 18 9 12 15 6"/>
-      </svg>
-      Back to Home
-    </a>
-  </div>
-
   <div class="page-title">Recording Patient Interview</div>
 
   <div class="content-area">
 
-    <!-- Patient Info Card -->
     <div class="patient-card">
       <h3>Patient Information</h3>
       <p><strong>ID:</strong> {{ interview.patient_id }}</p>
@@ -479,7 +468,6 @@
       <p><strong>Type:</strong> {{ interview.get_interview_type_display }}</p>
     </div>
 
-    <!-- Recording Card -->
     <div class="recording-card">
       <div class="recording-header">
         <div class="recording-title">
@@ -495,12 +483,10 @@
         <div id="timer" class="timer-display">00:00</div>
       </div>
 
-      <!-- Live waveform -->
       <div class="waveform-container">
         <canvas id="waveformCanvas"></canvas>
       </div>
 
-      <!-- Buttons -->
       <div class="btn-row">
         <button id="btnStart" class="btn-start">
           <svg viewBox="0 0 24 24" fill="currentColor">

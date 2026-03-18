@@ -14,7 +14,6 @@
     min-height: 100vh;
   }
 
-  /* ── Navbar ── */
   .navbar {
     display: flex;
     align-items: center;
@@ -37,7 +36,7 @@
   }
 
   .nav-brand .cross-icon {
-    width: 32px;  /* ← change to resize navbar icon */
+    width: 32px; 
     height: 32px;
     display: flex;
     align-items: center;
@@ -71,7 +70,6 @@
     box-shadow: 0 4px 14px rgba(26,111,255,0.35);
   }
 
-  /* ── Main content ── */
   .main {
     display: flex;
     flex-direction: column;
@@ -96,7 +94,6 @@
     letter-spacing: 0.01em;
   }
 
-  /* ── Cards ── */
   .card-row {
     display: flex;
     gap: 28px;
@@ -133,7 +130,7 @@
   }
 
   .card-icon {
-    width: 42px;  /* ← change to resize card icons */
+    width: 42px;
     height: 42px;
     flex-shrink: 0;
     object-fit: contain;
@@ -201,25 +198,12 @@
   }
 </style>
 
-<!-- Navbar -->
-<nav class="navbar">
-  <a href="{% url 'home' %}" class="nav-brand">
-    <div class="cross-icon">
-      <img src="{% static 'images/cross-icon.png' %}" alt="DocAssistant logo">
-    </div>
-    DocAssistant
-  </a>
-  <a href="{% url 'authentication:logout' %}" class="btn-logout">Logout</a>
-</nav>
-
-<!-- Main -->
 <div class="main">
   <h1 class="welcome-title">Welcome Doctor</h1>
   <p class="welcome-sub">AI assistant for medical records</p>
 
   <div class="card-row">
 
-    <!-- New Patient Card -->
     <div class="action-card">
       <div class="card-header">
         <img src="{% static 'images/stethoscope-icon.png' %}" alt="Stethoscope" class="card-icon">
@@ -231,7 +215,6 @@
       <a href="{% url 'start_interview' 'new' %}" class="btn-card-primary">Start Interview</a>
     </div>
 
-    <!-- Existing Patient Card -->
     <div class="action-card">
       <div class="card-header">
         <img src="{% static 'images/folder-icon.png' %}" alt="Folder" class="card-icon">
@@ -240,7 +223,7 @@
           <div class="card-sub">Record new Interview</div>
         </div>
       </div>
-      <a href="{% url 'start_interview' 'existing' %}" class="btn-card-secondary">View Patients</a>
+      <a href="{% url 'view_existing_patients' %}" class="btn-card-secondary">View Patients</a>
     </div>
 
   </div>
