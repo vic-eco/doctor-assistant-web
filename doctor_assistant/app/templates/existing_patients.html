@@ -24,7 +24,7 @@
     --shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
     --radius: 10px;
     --radius-sm: 6px;
-	--red: #e94141;
+    --red: #e94141;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -41,7 +41,7 @@
     padding: 28px 24px;
   }
 
-  /* Search Bar */
+  /* ── Search Bar ── */
   .search-bar {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -54,7 +54,7 @@
     margin-bottom: 20px;
   }
 
-  .search-type-wrapper { position: relative; }
+  .search-type-wrapper { position: relative; flex-shrink: 0; }
 
   .search-type-select {
     appearance: none;
@@ -80,7 +80,7 @@
     pointer-events: none;
   }
 
-  .search-input-wrapper { flex: 1; position: relative; }
+  .search-input-wrapper { flex: 1; position: relative; min-width: 0; }
 
   .search-input {
     width: 100%;
@@ -123,12 +123,14 @@
     padding: 8px 20px;
     cursor: pointer;
     transition: background 0.15s, transform 0.1s;
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 
   .search-btn:hover { background: var(--accent-dark); }
   .search-btn:active { transform: scale(0.97); }
 
-  /* Table Card */
+  /* ── Table Card ── */
   .table-card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -202,6 +204,12 @@
     font-size: 13.5px; color: var(--text-secondary); font-weight: 500;
   }
 
+  .patient-gender-cell {
+    font-family: 'DM Mono', monospace;
+    font-size: 13.5px; color: var(--text-secondary); font-weight: 500;
+	text-transform: capitalize;
+  }
+
   .actions-cell {
     display: flex; justify-content: flex-end; gap: 6px;
   }
@@ -217,6 +225,7 @@
     padding: 6px 13px;
     cursor: pointer; text-decoration: none;
     transition: background 0.13s, border-color 0.13s, box-shadow 0.13s;
+    white-space: nowrap;
   }
 
   .btn-view:hover {
@@ -228,20 +237,22 @@
   .btn-record {
     display: inline-flex; align-items: center; gap: 6px;
     background: var(--red);
-    border: 1.5px solid var(--teal-border);
+    border: 1.5px solid var(--red);
     border-radius: var(--radius-sm);
-    color: var(--bg);
+    color: #fff;
     font-family: 'DM Sans', sans-serif;
     font-size: 13px; font-weight: 600;
     padding: 6px 13px;
     cursor: pointer; text-decoration: none;
     transition: box-shadow 0.13s, background 0.13s;
+    white-space: nowrap;
   }
 
   .btn-record:hover {
-    box-shadow: 0 1px 4px rgba(13,148,136,0.15);
-	background: #ec1111;
-    color: var(--bg);
+    box-shadow: 0 1px 4px rgba(233,65,65,0.3);
+    background: #ec1111;
+    border-color: #ec1111;
+    color: #fff;
   }
 
   .empty-row td {
@@ -249,7 +260,42 @@
     color: var(--text-muted); font-size: 14px;
   }
 
-  /* Pagination */
+  /* ── Mobile card list (hidden on desktop) ── */
+  .mobile-list { display: none; }
+
+  .mobile-card {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .mobile-card:last-child { border-bottom: none; }
+
+  .mobile-card-top {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .mobile-card-info { flex: 1; min-width: 0; }
+
+  .mobile-gender {
+    font-size: 12px; color: var(--text-muted);
+    font-family: 'DM Mono', monospace; margin-top: 2px;
+    text-transform: capitalize;
+  }
+
+  .mobile-card-actions {
+    display: flex; gap: 8px;
+  }
+
+  .mobile-card-actions .btn-view,
+  .mobile-card-actions .btn-record {
+    flex: 1;
+    justify-content: center;
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+
+  /* ── Pagination ── */
   .pagination {
     display: flex; align-items: center; justify-content: center; gap: 6px;
     padding: 16px;
@@ -259,13 +305,14 @@
 
   .page-btn {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 32px; height: 32px;
+    width: 36px; height: 36px;
     border: 1.5px solid var(--border-strong);
     border-radius: var(--radius-sm);
     background: var(--surface);
     color: var(--text-secondary);
     font-size: 13px; cursor: pointer;
     transition: background 0.13s, border-color 0.13s;
+    touch-action: manipulation;
   }
 
   .page-btn:hover:not(:disabled) {
@@ -282,8 +329,48 @@
     background: var(--surface);
     color: var(--text-secondary);
     font-size: 13px; font-weight: 500;
-    padding: 0 14px; height: 32px;
+    padding: 0 14px; height: 36px;
     display: inline-flex; align-items: center;
+  }
+
+  /* ── Responsive ── */
+
+  /* Medium: tablet — hide Gender column */
+  @media (max-width: 900px) and (min-width: 641px) {
+    .page-wrapper { padding: 20px 16px; }
+
+    thead th:nth-child(3),
+    tbody td:nth-child(3) { display: none; }
+  }
+
+  /* Small: mobile — swap table for cards */
+  @media (max-width: 640px) {
+    .page-wrapper { padding: 14px 12px; }
+
+    /* Stack search bar vertically */
+    .search-bar {
+      flex-wrap: wrap;
+      padding: 12px;
+      gap: 8px;
+    }
+
+    .search-type-wrapper,
+    .search-input-wrapper { width: 100%; }
+
+    .search-type-select { width: 100%; }
+
+    .search-btn {
+      width: 100%;
+      justify-content: center;
+      padding: 10px;
+    }
+
+    /* Hide table, show cards */
+    .desktop-table { display: none; }
+    .mobile-list   { display: block; }
+
+    /* Hide first/last page buttons — too cramped */
+    #btn-first, #btn-last { display: none; }
   }
 </style>
 
@@ -329,14 +416,16 @@
     </div>
   </form>
 
-  <!-- Table -->
+  <!-- Table Card -->
   <div class="table-card">
-    <table id="patients-table">
+
+    <!-- Desktop / tablet table -->
+    <table id="patients-table" class="desktop-table">
       <thead>
         <tr>
           <th>Name</th>
           <th>Patient ID</th>
-		  <th>Gender</th>
+          <th>Gender</th>
           <th class="col-actions">Actions</th>
         </tr>
       </thead>
@@ -355,7 +444,7 @@
             </div>
           </td>
           <td class="patient-id-cell">{{ patient.patient_identifier }}</td>
-		  <td class="patient-id-cell">{{ patient.gender }}</td>
+          <td class="patient-gender-cell">{{ patient.gender }}</td>
           <td>
             <div class="actions-cell">
               <a href="{% url 'view_patient_details' patient.patient_rec_id %}" class="btn-view">
@@ -370,11 +459,42 @@
           </td>
         </tr>
         {% empty %}
-        <tr class="empty-row"><td colspan="3">No patients found.</td></tr>
+        <tr class="empty-row"><td colspan="4">No patients found.</td></tr>
         {% endfor %}
       </tbody>
     </table>
 
+    <!-- Mobile cards -->
+    <div class="mobile-list">
+      {% for patient in patients %}
+      <div class="mobile-card">
+        <div class="mobile-card-top">
+          <div class="avatar">
+            <svg><use href="#i-patient"/></svg>
+          </div>
+          <div class="mobile-card-info">
+            <div class="patient-name">{{ patient.patient_name }}</div>
+            <div class="patient-sub">ID: {{ patient.patient_identifier }}</div>
+            <div class="mobile-gender">{{ patient.gender }}</div>
+          </div>
+        </div>
+        <div class="mobile-card-actions">
+          <a href="{% url 'view_patient_details' patient.patient_rec_id %}" class="btn-view">
+            <svg width="14" height="14"><use href="#i-patient"/></svg>
+            View
+          </a>
+          <a href="{% url 'start_interview_existing' patient.patient_identifier %}" class="btn-record">
+            <svg width="14" height="14"><use href="#i-mic"/></svg>
+            Record
+          </a>
+        </div>
+      </div>
+      {% empty %}
+      <div style="text-align:center;padding:48px;color:var(--text-muted);font-size:14px;">No patients found.</div>
+      {% endfor %}
+    </div>
+
+    <!-- Pagination -->
     <div class="pagination">
       <button class="page-btn" id="btn-first" title="First page">«</button>
       <button class="page-btn" id="btn-prev" title="Previous page">
@@ -386,6 +506,7 @@
       </button>
       <button class="page-btn" id="btn-last" title="Last page">»</button>
     </div>
+
   </div>
 </div>
 

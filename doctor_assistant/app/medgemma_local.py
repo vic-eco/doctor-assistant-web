@@ -176,7 +176,7 @@ Schema:
   ],
   "conditions": [
     {{
-      "text": string
+      "text": string (condition_name)
     }}
   ],
   "medications": [
@@ -197,7 +197,7 @@ Text:
 {text}
 
 JSON:
-(Respond with complete JSON. Do not stop early.)
+(Respond with complete JSON. Do not stop early. The JSON format must match exactly)
 """
 
     if use_chunking:
@@ -256,8 +256,8 @@ def run_model(transcript):
     print("GENERATING")
     result = process_transcript(transcript, llm, use_chunking)
     print("GENERATED")
-    # print("\nFINAL EXTRACTED INFORMATION:")
-    # print(json.dumps(result, indent=2))
+    print("\nFINAL EXTRACTED INFORMATION:")
+    print(json.dumps(result, indent=2))
 
     return result
 
