@@ -47,9 +47,13 @@
     object-fit: contain;
   }
 
-  .btn-logout {
-    background: #1a6fff;
-    color: #fff;
+  .nav-actions {
+  	display: flex;
+  	align-items: center;
+  	gap: 12px; /* spacing between buttons */
+  }
+
+  .btn-logout, .btn-analytics {
     font-family: 'DM Sans', sans-serif;
     font-size: 14px;
     font-weight: 600;
@@ -62,11 +66,31 @@
     box-shadow: 0 2px 8px rgba(26,111,255,0.25);
   }
 
+  .btn-logout{
+	background: #1a6fff;
+    color: #fff;
+  }
+
   .btn-logout:hover {
     background: #0f56d6;
     box-shadow: 0 4px 14px rgba(26,111,255,0.35);
 	color: white
   }
+
+  .btn-analytics{
+	background: #696c79;
+    color: #fff;
+  }
+
+  .btn-analytics:hover{
+	background: #494f5c;
+    box-shadow: 0 4px 14px rgba(26,111,255,0.35);
+	color: white
+  }
+
+  
+
+
 </style>
 <body>
 	<nav class="navbar">
@@ -76,7 +100,10 @@
 			</div>
 			DocAssistant
 		</a>
-		<a href="{% url 'authentication:logout' %}" class="btn-logout">Logout</a>
+		<div class="nav-actions">
+			<a href="{% url 'analytics:home' %}" class="btn-analytics">Analytics</a>
+			<a href="{% url 'authentication:logout' %}" class="btn-logout">Logout</a>
+		</div>	
 	</nav>
 	{% block content %}{% endblock %}
 	{% if messages %}
