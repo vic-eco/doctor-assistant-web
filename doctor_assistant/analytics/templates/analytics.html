@@ -1,0 +1,794 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Clinical Analytics — Doctor Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:         #0a0d12;
+      --surface:    #111620;
+      --surface-2:  #161c2a;
+      --border:     #1e2840;
+      --accent:     #2dd4bf;       /* teal */
+      --accent-dim: #14453e;
+      --warn:       #f59e0b;
+      --danger:     #ef4444;
+      --text:       #e2e8f0;
+      --text-muted: #64748b;
+      --text-dim:   #334155;
+      --user-bg:    #1a2540;
+      --ai-bg:      #111620;
+      --radius:     8px;
+      --font-sans:  'IBM Plex Sans', sans-serif;
+      --font-mono:  'IBM Plex Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      height: 56px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .logo svg { width: 20px; height: 20px; }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .stat-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 100px;
+      border: 1px solid var(--border);
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+
+    .stat-pill .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .btn {
+      padding: 6px 14px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Main layout ── */
+    main {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* ── Sidebar ── */
+    aside {
+      width: 260px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .aside-section {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .aside-title {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    .suggestion-chip {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 8px 10px;
+      margin-bottom: 6px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      transition: all 0.15s;
+      line-height: 1.4;
+    }
+    .suggestion-chip:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    #patient-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    .patient-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 8px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .patient-item:hover { background: var(--surface-2); }
+
+    .patient-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--accent-dim);
+      border: 1px solid var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 600; color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .patient-info { min-width: 0; }
+    .patient-name {
+      font-size: 12px; font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .patient-meta {
+      font-size: 10px; font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+
+    /* ── Chat area ── */
+    .chat-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+
+    .message {
+      max-width: 820px;
+      animation: fadeIn 0.25s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .message.user { align-self: flex-end; }
+    .message.ai   { align-self: flex-start; }
+
+    .msg-bubble {
+      padding: 14px 18px;
+      border-radius: var(--radius);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .message.user .msg-bubble {
+      background: var(--user-bg);
+      border: 1px solid #253456;
+      color: var(--text);
+    }
+
+    .message.ai .msg-bubble {
+      background: var(--ai-bg);
+      border: 1px solid var(--border);
+    }
+
+    .msg-meta {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      margin-top: 4px;
+      padding: 0 4px;
+    }
+
+    .message.user .msg-meta { text-align: right; }
+
+    .intent-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 100px;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      border: 1px solid;
+      margin-right: 8px;
+    }
+    .intent-tag.pattern_analysis { color: var(--accent); border-color: var(--accent-dim); }
+    .intent-tag.comparison       { color: var(--warn);   border-color: #3d2f0a; }
+    .intent-tag.population       { color: #a78bfa;       border-color: #2e1f6b; }
+    .intent-tag.medication        { color: #34d399;       border-color: #0f3028; }
+    .intent-tag.general           { color: var(--text-muted); border-color: var(--border); }
+
+    /* AI message formatting */
+    .msg-bubble h1, .msg-bubble h2, .msg-bubble h3 {
+      color: var(--accent);
+      font-weight: 600;
+      margin-top: 16px;
+      margin-bottom: 6px;
+      font-size: 13px;
+      letter-spacing: 0.03em;
+    }
+    .msg-bubble h1:first-child,
+    .msg-bubble h2:first-child,
+    .msg-bubble h3:first-child { margin-top: 0; }
+
+    .msg-bubble ul, .msg-bubble ol {
+      padding-left: 18px;
+      margin: 6px 0;
+    }
+    .msg-bubble li { margin: 3px 0; }
+
+    .msg-bubble strong { color: var(--text); font-weight: 600; }
+    .msg-bubble em { color: var(--warn); font-style: normal; }
+
+    .msg-bubble code {
+      font-family: var(--font-mono);
+      background: var(--surface-2);
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 12px;
+      color: var(--accent);
+    }
+
+    .msg-bubble p + p { margin-top: 10px; }
+
+    /* Context drawer */
+    .context-toggle {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-dim);
+      cursor: pointer;
+      margin-top: 6px;
+      padding: 0 4px;
+      display: inline-block;
+      transition: color 0.15s;
+    }
+    .context-toggle:hover { color: var(--text-muted); }
+
+    .context-drawer {
+      margin-top: 8px;
+      padding: 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      white-space: pre-wrap;
+      max-height: 200px;
+      overflow-y: auto;
+      display: none;
+    }
+    .context-drawer.open { display: block; }
+
+    /* Thinking indicator */
+    .thinking {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-muted);
+      font-size: 13px;
+      padding: 14px 18px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--ai-bg);
+    }
+    .thinking-dots {
+      display: flex; gap: 4px;
+    }
+    .thinking-dots span {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: bounce 1.2s infinite;
+    }
+    .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes bounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+      40%            { transform: translateY(-6px); opacity: 1; }
+    }
+
+    /* ── Input area ── */
+    .input-area {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    #question-input {
+      flex: 1;
+      min-height: 44px;
+      max-height: 120px;
+      padding: 10px 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      resize: none;
+      outline: none;
+      transition: border-color 0.15s;
+      line-height: 1.5;
+    }
+    #question-input:focus { border-color: var(--accent); }
+    #question-input::placeholder { color: var(--text-dim); }
+
+    #send-btn {
+      height: 44px;
+      padding: 0 20px;
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      flex-shrink: 0;
+    }
+    #send-btn:hover { opacity: 0.88; }
+    #send-btn:active { transform: scale(0.97); }
+    #send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .input-hint {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+    }
+
+    /* Empty state */
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--text-dim);
+    }
+    .empty-state svg { width: 48px; height: 48px; opacity: 0.3; }
+    .empty-state h2 {
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+    .empty-state p {
+      font-size: 13px;
+      color: var(--text-dim);
+      text-align: center;
+      max-width: 380px;
+      line-height: 1.6;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 10px 16px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-family: var(--font-mono);
+      border: 1px solid;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 100;
+    }
+    #toast.show { opacity: 1; }
+    #toast.success { background: #0f3028; border-color: #34d399; color: #34d399; }
+    #toast.error   { background: #2d0a0a; border-color: var(--danger); color: var(--danger); }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/>
+    </svg>
+    Clinical Analytics
+  </div>
+  <div class="header-right">
+    <div class="stat-pill">
+      <span class="dot"></span>
+      <span id="graph-status">{{ patient_count }} patient{{ patient_count|pluralize }} loaded</span>
+    </div>
+    <button class="btn" id="refresh-btn" onclick="refreshGraph()">↺ Refresh Graph</button>
+  </div>
+</header>
+
+<main>
+  <!-- ── Sidebar ── -->
+  <aside>
+    <div class="aside-section">
+      <div class="aside-title">Quick Queries</div>
+      <button class="suggestion-chip" onclick="useQuery('Show me any medical patterns for all patients')">
+        🔍 Patterns across all patients
+      </button>
+      <button class="suggestion-chip" onclick="useQuery('What are the most common symptoms and conditions across all patients?')">
+        📊 Population overview
+      </button>
+      <button class="suggestion-chip" onclick="useQuery('Are there any patients with similar conditions? List them.')">
+        🔗 Find similar patients
+      </button>
+      <button class="suggestion-chip" onclick="useQuery('List all active medications and flag any potential interactions')">
+        💊 Medication review
+      </button>
+      <button class="suggestion-chip" onclick="useQuery('Which patients have both headache and chest pain symptoms?')">
+        ⚠️ Symptom co-occurrence
+      </button>
+    </div>
+
+    <div class="aside-section" style="padding-bottom: 8px;">
+      <div class="aside-title">Patients</div>
+    </div>
+    <div id="patient-list">
+      <div style="color: var(--text-dim); font-size: 11px; text-align: center; padding: 20px;">
+        Loading…
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Chat ── -->
+  <div class="chat-area">
+    <div id="messages">
+      <div class="empty-state" id="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+          <path d="M12 17h.01"/>
+        </svg>
+        <h2>Clinical Analysis Ready</h2>
+        <p>Ask anything about your patients — patterns, comparisons, medication reviews, or population-level insights.</p>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-row">
+        <textarea
+          id="question-input"
+          placeholder="e.g. 'Show me patterns across all patients' or 'Which patients have hypertension? Are there any medication concerns?'"
+          rows="1"
+          onkeydown="handleKey(event)"
+          oninput="autoResize(this)"
+        ></textarea>
+        <button id="send-btn" onclick="sendQuery()">Analyse →</button>
+      </div>
+      <div class="input-hint">Enter to send · Shift+Enter for new line</div>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+  const CSRF = '{{ csrf_token }}';
+  let messageCount = 0;
+
+  // ── Auto-resize textarea ──
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  }
+
+  // ── Key handler ──
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendQuery();
+    }
+  }
+
+  // ── Use a suggestion ──
+  function useQuery(text) {
+    const input = document.getElementById('question-input');
+    input.value = text;
+    autoResize(input);
+    input.focus();
+  }
+
+  // ── Query a patient directly from sidebar ──
+  function queryPatient(patientId, name) {
+    useQuery(`Show me the full medical profile and any clinical patterns for patient ${patientId} (${name})`);
+  }
+
+  // ── Format AI response markdown-ish ──
+  function formatResponse(text) {
+    return text
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/`(.+?)`/g, '<code>$1</code>')
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+      .replace(/^\s*[-•]\s+(.+)$/gm, '<li>$1</li>')
+      .replace(/(<li>.*<\/li>(\n|$))+/g, m => '<ul>' + m + '</ul>')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/^(?!<[hup\/<])/gm, '')
+      .replace(/\n/g, '<br>');
+  }
+
+  // ── Append user message ──
+  function appendUserMessage(text) {
+    const empty = document.getElementById('empty-state');
+    if (empty) empty.remove();
+
+    const div = document.createElement('div');
+    div.className = 'message user';
+    div.innerHTML = `
+      <div class="msg-bubble">${text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+      <div class="msg-meta">${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+    `;
+    document.getElementById('messages').appendChild(div);
+    scrollDown();
+  }
+
+  // ── Append thinking indicator ──
+  function appendThinking() {
+    const div = document.createElement('div');
+    div.className = 'message ai';
+    div.id = 'thinking';
+    div.innerHTML = `
+      <div class="thinking">
+        <div class="thinking-dots"><span></span><span></span><span></span></div>
+        Analysing patient data…
+      </div>
+    `;
+    document.getElementById('messages').appendChild(div);
+    scrollDown();
+  }
+
+  // ── Remove thinking ──
+  function removeThinking() {
+    const t = document.getElementById('thinking');
+    if (t) t.remove();
+  }
+
+  // ── Append AI response ──
+  function appendAIMessage(result) {
+    messageCount++;
+    const id = `msg-${messageCount}`;
+    const intentLabel = result.intent || 'general';
+    const pids = result.patient_ids?.length ? result.patient_ids.join(', ') : 'all';
+
+    const div = document.createElement('div');
+    div.className = 'message ai';
+    div.innerHTML = `
+      <div class="msg-bubble"><p>${formatResponse(result.answer)}</p></div>
+      <div class="msg-meta">
+        <span class="intent-tag ${intentLabel}">${intentLabel.replace('_', ' ')}</span>
+        patients: ${pids} · ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+        <span class="context-toggle" onclick="toggleContext('${id}')"> · [show graph context]</span>
+      </div>
+      <div class="context-drawer" id="${id}">${(result.context_used || '').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>
+    `;
+    document.getElementById('messages').appendChild(div);
+    scrollDown();
+  }
+
+  // ── Toggle context drawer ──
+  function toggleContext(id) {
+    const el = document.getElementById(id);
+    el.classList.toggle('open');
+  }
+
+  // ── Scroll to bottom ──
+  function scrollDown() {
+    const m = document.getElementById('messages');
+    m.scrollTop = m.scrollHeight;
+  }
+
+  // ── Send query ──
+  async function sendQuery() {
+    const input = document.getElementById('question-input');
+    const question = input.value.trim();
+    if (!question) return;
+
+    input.value = '';
+    input.style.height = 'auto';
+    input.disabled = true;
+    document.getElementById('send-btn').disabled = true;
+
+    appendUserMessage(question);
+    appendThinking();
+
+    try {
+      const resp = await fetch('{% url "analytics:query" %}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': CSRF,
+        },
+        body: JSON.stringify({ question }),
+      });
+      const data = await resp.json();
+      removeThinking();
+      if (data.error) {
+        appendAIMessage({ answer: '⚠️ ' + data.error, intent: 'error', patient_ids: [], context_used: '' });
+      } else {
+        appendAIMessage(data);
+      }
+    } catch (err) {
+      removeThinking();
+      appendAIMessage({ answer: '⚠️ Network error: ' + err.message, intent: 'error', patient_ids: [], context_used: '' });
+    } finally {
+      input.disabled = false;
+      document.getElementById('send-btn').disabled = false;
+      input.focus();
+    }
+  }
+
+  // ── Refresh graph ──
+  async function refreshGraph() {
+    const btn = document.getElementById('refresh-btn');
+    btn.disabled = true;
+    btn.textContent = '↺ Refreshing…';
+    document.getElementById('graph-status').textContent = 'Fetching from FHIR…';
+
+    try {
+      const resp = await fetch('{% url "analytics:refresh" %}', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': CSRF },
+      });
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error);
+
+      document.getElementById('graph-status').textContent =
+        `${data.patient_count} patients · ${data.encounter_count} encounters`;
+      showToast(`Graph refreshed: ${data.patient_count} patients`, 'success');
+      loadStats();
+    } catch (err) {
+      showToast('Refresh failed: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '↺ Refresh Graph';
+    }
+  }
+
+  // ── Load sidebar stats ──
+  async function loadStats() {
+    try {
+      const resp = await fetch('{% url "analytics:stats" %}');
+      const data = await resp.json();
+      if (!data.loaded) {
+        document.getElementById('graph-status').textContent = 'No data loaded';
+        return;
+      }
+      document.getElementById('graph-status').textContent =
+        `${data.patient_count} patients loaded`;
+
+      const list = document.getElementById('patient-list');
+      list.innerHTML = '';
+      for (const p of (data.patients || [])) {
+        const initials = p.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+        const item = document.createElement('div');
+        item.className = 'patient-item';
+        item.onclick = () => queryPatient(p.id, p.name);
+        item.innerHTML = `
+          <div class="patient-avatar">${initials}</div>
+          <div class="patient-info">
+            <div class="patient-name">${p.name}</div>
+            <div class="patient-meta">ID:${p.id} · ${p.gender}</div>
+          </div>
+        `;
+        list.appendChild(item);
+      }
+      if (!data.patients?.length) {
+        list.innerHTML = '<div style="color:var(--text-dim);font-size:11px;text-align:center;padding:20px;">No patients — click Refresh</div>';
+      }
+    } catch (err) {
+      console.error('Stats load error:', err);
+    }
+  }
+
+  // ── Toast ──
+  function showToast(msg, type = 'success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = `show ${type}`;
+    setTimeout(() => { t.className = type; }, 3000);
+  }
+
+  // Init
+  loadStats();
+</script>
+</body>
+</html>
