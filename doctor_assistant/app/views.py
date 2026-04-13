@@ -242,16 +242,13 @@ def update_bundle(request):
     # Clear existing entries and rebuild from form data
     new_entries = []
     
-    # Helper function to generate UUID
     def generate_uuid(resource_type, index):
         return f"urn:uuid:{resource_type.lower()}-{index}"
     
-    # 1. UPDATE PATIENT
+    # Update Patient
     patient_name = request.POST.get("patient_name_patient")
     patient_gender = request.POST.get("patient_gender_patient")
     patient_identifier = request.POST.get("patient_identifier_patient")
-
-    #TODO Check if this works 
 
     patient_resource_id = request.session.get("patient_resource_id")
     if isinstance(patient_resource_id, str) and patient_resource_id.isdigit():
@@ -283,7 +280,7 @@ def update_bundle(request):
             }
         })
     
-    # 2. UPDATE ENCOUNTER
+    # Update Encounter
     encounter_reason = request.POST.get("encounter_reason_encounter")
     
     if encounter_reason:
@@ -307,7 +304,7 @@ def update_bundle(request):
             }
         })
     
-    # 3. BUILD OBSERVATIONS (dynamic - handle adds/removes)
+    # Build Observations
     obs_index = 1
     while True:
         obs_code_key = f"observation_code_obs-{obs_index}"
@@ -368,7 +365,7 @@ def update_bundle(request):
         
         obs_index += 1
     
-    # 4. BUILD CONDITIONS (dynamic - handle adds/removes)
+    # Build Conditions
     cond_index = 1
     while True:
         cond_code_key = f"condition_code_condition-{cond_index}"
@@ -409,7 +406,7 @@ def update_bundle(request):
         
         cond_index += 1
     
-    # 5. BUILD MEDICATIONS (dynamic - handle adds/removes)
+    # Build Medications
     med_index = 1
     while True:
         med_name_key = f"medication_name_medication-{med_index}"
@@ -448,7 +445,7 @@ def update_bundle(request):
         
         med_index += 1
     
-    # 6. BUILD ALLERGIES (dynamic - handle adds/removes)
+    # Build allergies
     allergy_index = 1
     while True:
         allergy_code_key = f"allergy_code_allergy-{allergy_index}"
@@ -549,7 +546,6 @@ def _save_bundle(data):
     
     response = requests.post(url, headers=headers, json=data)
     
-    # Raise error if request failed
     response.raise_for_status()
     
     return response.json()

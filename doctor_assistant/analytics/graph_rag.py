@@ -423,6 +423,7 @@ When analyzing patient data:
 - Be concise but thorough — doctors need actionable insights, not lengthy prose
 - Always clarify that you are providing decision support, not a diagnosis
 - Use medical terminology appropriately
+- If not patients match the doctor's query, say so. Don't return patients that don't answer the question
 
 Format your response with clear sections when appropriate. Be specific and cite the data provided."""
 
@@ -431,7 +432,7 @@ Format your response with clear sections when appropriate. Be specific and cite 
         model_path = settings.BASE_DIR / "model_files" / "medgemma-1.5-4b-it-Q4_K_M.gguf"
         self._llm = Llama(
             model_path=str(model_path),
-            n_ctx=8192,      
+            n_ctx=9000,      
             n_gpu_layers=0, 
             verbose=False,
         )
