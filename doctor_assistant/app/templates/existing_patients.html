@@ -494,51 +494,84 @@
       {% endfor %}
     </div>
 
-    <!-- Pagination -->
-    <div class="pagination">
-      <button class="page-btn" id="btn-first" title="First page">«</button>
-      <button class="page-btn" id="btn-prev" title="Previous page">
-        <svg width="14" height="14"><use href="#i-chevleft"/></svg>
-      </button>
-      <span class="page-info" id="page-info">Page {{ page }} of {{ total_pages }}</span>
-      <button class="page-btn" id="btn-next" title="Next page">
-        <svg width="14" height="14"><use href="#i-chevright"/></svg>
-      </button>
-      <button class="page-btn" id="btn-last" title="Last page">»</button>
-    </div>
-
+	<div id="scroll-trigger" style="height: 40px;"></div>
+	<div id="loading" style="text-align:center; padding:10px; display:none;">
+  		Loading more patients...
+	</div>
   </div>
 </div>
 
 <script>
-  (function () {
-    const currentPage = parseInt("{{ page }}") || 1;
-    const totalPages  = parseInt("{{ total_pages }}") || 1;
+document.addEventListener("DOMContentLoaded", function () {
 
-    const btnFirst = document.getElementById('btn-first');
-    const btnPrev  = document.getElementById('btn-prev');
-    const btnNext  = document.getElementById('btn-next');
-    const btnLast  = document.getElementById('btn-last');
+  let nextUrl = "{{ next_url|escapejs }}";
+  let loading = false;
 
-    if (currentPage <= 1) {
-      btnFirst.disabled = true;
-      btnPrev.disabled  = true;
+  const trigger = document.getElementById("scroll-trigger");
+  const loadingEl = document.getElementById("loading");
+  const tableBody = document.querySelector("#patients-table tbody");
+
+  if (!trigger) return; // safety
+
+  const observer = new IntersectionObserver(async (entries) => {
+    if (!entries[0].isIntersecting || !nextUrl || loading) return;
+
+    loading = true;
+    loadingEl.style.display = "block";
+
+    try {
+      const response = await fetch(
+        `?page_url=${encodeURIComponent(nextUrl)}&search_type={{ search_type }}&query={{ query }}`,
+        {
+          headers: { "X-Requested-With": "XMLHttpRequest" }
+        }
+      );
+
+      const data = await response.json();
+
+      data.patients.forEach(patient => {
+        const row = document.createElement("tr");
+
+        row.innerHTML = `
+          <td>
+            <div class="patient-cell">
+              <div class="avatar">
+                <svg><use href="#i-patient"/></svg>
+              </div>
+              <div>
+                <div class="patient-name">${patient.patient_name}</div>
+                <div class="patient-sub">ID: ${patient.patient_identifier}</div>
+              </div>
+            </div>
+          </td>
+          <td class="patient-id-cell">${patient.patient_identifier}</td>
+          <td class="patient-gender-cell">${patient.gender}</td>
+          <td>
+            <div class="actions-cell">
+              <a href="/patients/${patient.patient_rec_id}/" class="btn-view">View Patient</a>
+              <a href="/interview/${patient.patient_identifier}/" class="btn-record">Record Interview</a>
+            </div>
+          </td>
+        `;
+
+        tableBody.appendChild(row);
+      });
+
+      nextUrl = data.next_url;
+
+      if (!nextUrl) observer.disconnect();
+
+    } catch (err) {
+      console.error(err);
     }
-    if (currentPage >= totalPages) {
-      btnNext.disabled = true;
-      btnLast.disabled = true;
-    }
 
-    function goToPage(p) {
-      const params = new URLSearchParams(window.location.search);
-      params.set('page', p);
-      window.location.search = params.toString();
-    }
+    loading = false;
+    loadingEl.style.display = "none";
 
-    btnFirst.addEventListener('click', function () { if (!this.disabled) goToPage(1); });
-    btnPrev.addEventListener('click',  function () { if (!this.disabled) goToPage(currentPage - 1); });
-    btnNext.addEventListener('click',  function () { if (!this.disabled) goToPage(currentPage + 1); });
-    btnLast.addEventListener('click',  function () { if (!this.disabled) goToPage(totalPages); });
-  })();
+  }, { rootMargin: "100px" });
+
+  observer.observe(trigger);
+
+});
 </script>
 {% endblock %}

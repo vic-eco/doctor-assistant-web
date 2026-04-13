@@ -39,25 +39,27 @@ def home(request):
 @login_required
 def view_existing_patients(request):
     search_type = request.GET.get("search_type") or ""
-    query = request.GET.get("query") or ""  
- 
-    if search_type and query:
-        patients = _get_patients(search_type, query)
-    else:
-        patients = _get_patients()
- 
-    #This works fine for small datasets. For larger move pagination to FHIR server
-    paginator = Paginator(patients, 5)  # 5 patients per page
-    page_number = request.GET.get("page", 1)
-    page_obj = paginator.get_page(page_number)
- 
+    query = request.GET.get("query") or ""
+    page_url = request.GET.get("page_url")
+
+    patients, next_url, prev_url = _get_patients(
+        search_type=search_type,
+        query=query,
+        page_url=page_url
+    )
+
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return JsonResponse({
+            "patients": patients,
+            "next_url": next_url
+        })
+
     return render(
         request,
         "existing_patients.html",
         {
-            "patients": page_obj,
-            "page": page_obj.number,
-            "total_pages": paginator.num_pages,
+            "patients": patients,
+            "next_url": next_url,
             "search_type": search_type,
             "query": query,
         }
@@ -240,16 +242,13 @@ def update_bundle(request):
     # Clear existing entries and rebuild from form data
     new_entries = []
     
-    # Helper function to generate UUID
     def generate_uuid(resource_type, index):
         return f"urn:uuid:{resource_type.lower()}-{index}"
     
-    # 1. UPDATE PATIENT
+    # Update Patient
     patient_name = request.POST.get("patient_name_patient")
     patient_gender = request.POST.get("patient_gender_patient")
     patient_identifier = request.POST.get("patient_identifier_patient")
-
-    #TODO Check if this works 
 
     patient_resource_id = request.session.get("patient_resource_id")
     if isinstance(patient_resource_id, str) and patient_resource_id.isdigit():
@@ -281,7 +280,7 @@ def update_bundle(request):
             }
         })
     
-    # 2. UPDATE ENCOUNTER
+    # Update Encounter
     encounter_reason = request.POST.get("encounter_reason_encounter")
     
     if encounter_reason:
@@ -305,7 +304,7 @@ def update_bundle(request):
             }
         })
     
-    # 3. BUILD OBSERVATIONS (dynamic - handle adds/removes)
+    # Build Observations
     obs_index = 1
     while True:
         obs_code_key = f"observation_code_obs-{obs_index}"
@@ -366,7 +365,7 @@ def update_bundle(request):
         
         obs_index += 1
     
-    # 4. BUILD CONDITIONS (dynamic - handle adds/removes)
+    # Build Conditions
     cond_index = 1
     while True:
         cond_code_key = f"condition_code_condition-{cond_index}"
@@ -407,7 +406,7 @@ def update_bundle(request):
         
         cond_index += 1
     
-    # 5. BUILD MEDICATIONS (dynamic - handle adds/removes)
+    # Build Medications
     med_index = 1
     while True:
         med_name_key = f"medication_name_medication-{med_index}"
@@ -446,7 +445,7 @@ def update_bundle(request):
         
         med_index += 1
     
-    # 6. BUILD ALLERGIES (dynamic - handle adds/removes)
+    # Build allergies
     allergy_index = 1
     while True:
         allergy_code_key = f"allergy_code_allergy-{allergy_index}"
@@ -547,7 +546,6 @@ def _save_bundle(data):
     
     response = requests.post(url, headers=headers, json=data)
     
-    # Raise error if request failed
     response.raise_for_status()
     
     return response.json()
@@ -582,19 +580,26 @@ def _get_patient_by_identifier(identifier_value: str):
 
     return entries[0]["resource"]
 
-def _get_patients(search_type=None, query=None):
-    url = f"{settings.FHIR_URL}/Patient"
+import requests
 
-    params = {}
-    
-    if search_type and query:
-        if search_type == 'name':
-            search_type = f"{search_type}:contains="
-        params[search_type] = query
-
-    headers = { 
+def _get_patients(search_type=None, query=None, page_url=None):
+    headers = {
         "Accept": "application/fhir+json"
     }
+
+    # If we already have a pagination URL → use it directly
+    if page_url:
+        url = page_url
+        params = {}
+    else:
+        url = f"{settings.FHIR_URL}/Patient"
+        params = {"_count": 5}  # match your UI page size
+
+        if search_type and query:
+            if search_type == "name":
+                params["name:contains"] = query
+            else:
+                params[search_type] = query
 
     response = requests.get(
         url,
@@ -602,29 +607,34 @@ def _get_patients(search_type=None, query=None):
         params=params,
         timeout=10
     )
-
     response.raise_for_status()
 
     bundle = response.json()
 
     entries = bundle.get("entry", [])
 
-    if not entries:
-        return []
-    
-    res = []
-    obj = {}
+    patients = []
     for entry in entries:
-        obj = {
-            "patient_rec_id": entry["resource"]["id"],
-            "patient_identifier": entry["resource"]["identifier"][0]["value"],
-            "patient_name": entry["resource"]["name"][0]["text"],
-            "gender": entry["resource"]["gender"]
-        }
+        resource = entry["resource"]
 
-        res.append(obj)
-    
-    return res
+        patients.append({
+            "patient_rec_id": resource["id"],
+            "patient_identifier": resource["identifier"][0]["value"],
+            "patient_name": resource["name"][0].get("text", ""),
+            "gender": resource.get("gender", "")
+        })
+
+    # Extract pagination links
+    next_url = None
+    prev_url = None
+
+    for link in bundle.get("link", []):
+        if link["relation"] == "next":
+            next_url = link["url"]
+        elif link["relation"] == "previous":
+            prev_url = link["url"]
+
+    return patients, next_url, prev_url
 
 def _get_patient_details(id: str):
 

@@ -370,7 +370,7 @@
       const stop = document.getElementById('btnStop');
       const playAudio = document.getElementById('audioPlay');
 
-      // --- Live Waveform Setup ---
+      // Waveform Setup
       const canvas = document.getElementById('waveformCanvas');
       const ctx = canvas.getContext('2d');
       let animFrameId = null;
@@ -433,7 +433,7 @@
 
       drawIdle();
 
-      // --- Recorder ---
+      
       let mediaRecorder = new MediaRecorder(mediaStreamObj);
       let chunks = [];
 

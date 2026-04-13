@@ -5,11 +5,6 @@ from django.conf import settings
 
 from .llm_loader import get_llm
 
-
-# ---------------------------------------------------------
-# JSON REPAIR (fixes truncated JSON)
-# ---------------------------------------------------------
-
 def repair_json(text: str) -> str:
     """Fix incomplete JSON by closing braces/brackets."""
     text = text.replace("<end_of_turn>", "").strip()
@@ -29,10 +24,6 @@ def repair_json(text: str) -> str:
     return text
 
 
-# ---------------------------------------------------------
-# JSON EXTRACTION
-# ---------------------------------------------------------
-
 def extract_json_from_response(text: str) -> Dict[str, Any]:
     try:
         start = text.find("{")
@@ -45,10 +36,6 @@ def extract_json_from_response(text: str) -> Dict[str, Any]:
         print("Raw output:", text[:300])
         return None
 
-
-# ---------------------------------------------------------
-# MERGING
-# ---------------------------------------------------------
 
 def smart_merge_extractions(extractions: List[Dict[str, Any]]) -> Dict[str, Any]:
     merged = {
@@ -92,10 +79,6 @@ def smart_merge_extractions(extractions: List[Dict[str, Any]]) -> Dict[str, Any]
     return merged
 
 
-# ---------------------------------------------------------
-# CHUNKING
-# ---------------------------------------------------------
-
 def semantic_chunking(transcript: str, max_exchanges: int = 6) -> List[str]:
     lines = [l.strip() for l in transcript.split("\n") if l.strip()]
     chunks = []
@@ -118,10 +101,6 @@ def semantic_chunking(transcript: str, max_exchanges: int = 6) -> List[str]:
     return chunks
 
 
-# ---------------------------------------------------------
-# GENERATION (correct for MedGemma)
-# ---------------------------------------------------------
-
 def generate_text(prompt: str, llm: Llama, max_tokens: int = 1024) -> str:
     response = llm.create_chat_completion(
         messages=[
@@ -143,10 +122,6 @@ def generate_text(prompt: str, llm: Llama, max_tokens: int = 1024) -> str:
     text = response["choices"][0]["message"]["content"]
     return repair_json(text)
 
-
-# ---------------------------------------------------------
-# MAIN EXTRACTION PIPELINE
-# ---------------------------------------------------------
 
 def process_transcript(transcript: str, llm: Llama, use_chunking: bool = False) -> Dict[str, Any]:
 
@@ -218,10 +193,6 @@ JSON:
         raw = generate_text(prompt, llm)
         return extract_json_from_response(raw)
 
-
-# ---------------------------------------------------------
-# MAIN
-# ---------------------------------------------------------
 
 def run_model(transcript):
     
