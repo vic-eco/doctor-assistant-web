@@ -218,7 +218,7 @@ class KnowledgeGraph:
         return sorted(similarities, key=lambda x: len(x[1]), reverse=True)
 
     def get_all_symptoms_and_conditions(self) -> dict[str, list[str]]:
-        """Global view: symptom/condition → list of patient IDs."""
+        """symptom/condition → list of patient IDs. (reverse index)"""
         mapping = defaultdict(list)
         for c in self.conditions.values():
             mapping[c.code.lower()].append(c.patient_id)
@@ -230,7 +230,7 @@ class KnowledgeGraph:
 
 
 class FHIRClient:
-    """Thin client for HAPI FHIR REST API."""
+    """client for HAPI FHIR REST API."""
 
     def __init__(self, base_url: str = HAPI_BASE_URL):
         self.base_url = base_url.rstrip("/")
@@ -390,7 +390,7 @@ def classify_query(query: str) -> dict:
         flat_ids = re.findall(r'\b(\d{1,6})\b', query)
 
     # Determine intent
-    if any(w in query_lower for w in ["compar", "similar", "same", "both", "differ"]):
+    if any(w in query_lower for w in ["compare", "similar", "same", "both", "differ"]):
         intent = "comparison"
     elif any(w in query_lower for w in ["pattern", "trend", "history", "overview", "analysis"]):
         intent = "pattern_analysis"
@@ -410,7 +410,7 @@ def classify_query(query: str) -> dict:
 
 class GraphRAGEngine:
     """
-    Main engine: retrieves graph context and calls Claude for analysis.
+    Main engine: retrieves graph context and calls LLM for analysis.
     """
 
     SYSTEM_PROMPT = """You are a clinical decision support assistant helping doctors analyze patient data.
@@ -427,6 +427,7 @@ When analyzing patient data:
 
 Format your response with clear sections when appropriate. Be specific and cite the data provided."""
 
+    #TODO change to use _getLLM (change _getLLM to have context of 9000)
     def __init__(self, graph=None):
         self.graph = graph
         model_path = settings.BASE_DIR / "model_files" / "medgemma-1.5-4b-it-Q4_K_M.gguf"
@@ -468,8 +469,7 @@ Format your response with clear sections when appropriate. Be specific and cite 
             return all_context + "\n\n" + all_patient_ctx
 
         elif patient_ids:
-            # Resolve patient IDs - HAPI assigns its own IDs
-            # We try to match by ID or by national_id
+            # Try to match by ID or by national_id
             resolved = []
             for qid in patient_ids:
                 # Direct match
@@ -507,7 +507,7 @@ Format your response with clear sections when appropriate. Be specific and cite 
                 return self.graph.get_cross_patient_context(resolved)
 
         else:
-            # No specific patients mentioned — use all data
+            # No specific patients mentioned, use all data
             return self.graph.get_cross_patient_context(
                 list(self.graph.patients.keys())
             )
@@ -547,7 +547,7 @@ Please analyze the data and provide a clinical assessment."""
                     {"role": "user",   "content": user_message},
                 ],
                 max_tokens=1500,
-                temperature=0.3,   # low temp = more consistent clinical answers
+                temperature=0.3,
             )
             # response.raise_for_status()
             # data = response.json()

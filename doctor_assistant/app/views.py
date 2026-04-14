@@ -527,7 +527,6 @@ def update_bundle(request):
 
 @login_required
 def bundle_saved(request):
-    """Confirmation page after bundle is saved"""
     return render(request, "bundle_saved.html")
 
 @login_required
@@ -579,8 +578,6 @@ def _get_patient_by_identifier(identifier_value: str):
         return None
 
     return entries[0]["resource"]
-
-import requests
 
 def _get_patients(search_type=None, query=None, page_url=None):
     headers = {
