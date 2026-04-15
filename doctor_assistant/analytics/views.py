@@ -89,25 +89,10 @@ def graph_stats(request):
         return JsonResponse({"loaded": False, "patient_count": 0})
 
     g = engine.graph
-    symptom_map = g.get_all_symptoms_and_conditions()
-
-    # Top 10 most common clinical features
-    top_features = sorted(
-        [(k, len(v)) for k, v in symptom_map.items()],
-        key=lambda x: -x[1]
-    )[:10]
-
+ 
     return JsonResponse({
         "loaded": True,
         "patient_count": len(g.patients),
-        "encounter_count": len(g.encounters),
-        "observation_count": len(g.observations),
-        "condition_count": len(g.conditions),
-        "medication_count": len(g.medications),
-        "allergy_count": len(g.allergies),
-        "top_clinical_features": [
-            {"feature": f, "patient_count": c} for f, c in top_features
-        ],
         "patients": [
             {
                 "id": p.id,

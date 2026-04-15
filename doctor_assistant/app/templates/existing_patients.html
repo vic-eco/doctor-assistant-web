@@ -511,6 +511,9 @@ document.addEventListener("DOMContentLoaded", function () {
   const loadingEl = document.getElementById("loading");
   const tableBody = document.querySelector("#patients-table tbody");
 
+  const viewPatientBaseUrl = "{% url 'view_patient_details' 0 %}".replace("/0/", "/");
+  const interviewBaseUrl = "{% url 'start_interview_existing' 'X' %}".replace("/X/", "/");
+
   if (!trigger) return; // safety
 
   const observer = new IntersectionObserver(async (entries) => {
@@ -532,10 +535,14 @@ document.addEventListener("DOMContentLoaded", function () {
       data.patients.forEach(patient => {
         const row = document.createElement("tr");
 
+		const viewUrl = viewPatientBaseUrl + patient.patient_rec_id + "/";
+   		const interviewUrl = interviewBaseUrl + patient.patient_identifier + "/";
+
+
         row.innerHTML = `
           <td>
             <div class="patient-cell">
-              <div class="avatar">
+			  <div class="avatar">
                 <svg><use href="#i-patient"/></svg>
               </div>
               <div>
@@ -548,8 +555,8 @@ document.addEventListener("DOMContentLoaded", function () {
           <td class="patient-gender-cell">${patient.gender}</td>
           <td>
             <div class="actions-cell">
-              <a href="/patients/${patient.patient_rec_id}/" class="btn-view">View Patient</a>
-              <a href="/interview/${patient.patient_identifier}/" class="btn-record">Record Interview</a>
+              <a href="${viewUrl}" class="btn-view"><svg width="14" height="14"><use href="#i-patient"/></svg>View Patient</a>
+              <a href="${interviewUrl}" class="btn-record"><svg width="14" height="14"><use href="#i-mic"/></svg>Record Interview</a>
             </div>
           </td>
         `;
