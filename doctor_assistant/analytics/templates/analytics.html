@@ -23,6 +23,7 @@
       --text-dim:   #334155;
       --user-bg:    #1a2540;
       --ai-bg:      #111620;
+	  --home:		#334155;
       --radius:     8px;
       --font-sans:  'IBM Plex Sans', sans-serif;
       --font-mono:  'IBM Plex Mono', monospace;
@@ -40,7 +41,7 @@
       overflow: hidden;
     }
 
-    /* ── Header ── */
+    /*  Header  */
     header {
       display: flex;
       align-items: center;
@@ -109,14 +110,20 @@
     .btn:hover { border-color: var(--accent); color: var(--accent); }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    /* ── Main layout ── */
+	a.btn {
+      background: var(--home);
+	  text-decoration: none;
+    }
+	a.btn:hover { border-color: var(--accent); color: var(--text); }
+
+    /*  Main layout  */
     main {
       display: flex;
       flex: 1;
       min-height: 0;
     }
 
-    /* ── Sidebar ── */
+    /*  Sidebar  */
     aside {
       width: 260px;
       background: var(--surface);
@@ -200,7 +207,7 @@
       color: var(--text-muted);
     }
 
-    /* ── Chat area ── */
+    /*  Chat area  */
     .chat-area {
       flex: 1;
       display: flex;
@@ -367,7 +374,7 @@
       40%            { transform: translateY(-6px); opacity: 1; }
     }
 
-    /* ── Input area ── */
+    /*  Input area  */
     .input-area {
       padding: 16px 24px;
       border-top: 1px solid var(--border);
@@ -477,7 +484,7 @@
 </head>
 <body>
 
-<!-- ── Header ── -->
+<!--  Header  -->
 <header>
   <div class="logo">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -491,30 +498,13 @@
       <span id="graph-status">{{ patient_count }} patient{{ patient_count|pluralize }} loaded</span>
     </div>
     <button class="btn" id="refresh-btn" onclick="refreshGraph()">↺ Refresh Graph</button>
+	<a href="{% url 'home' %}" class="btn">Home</a>
   </div>
 </header>
 
 <main>
-  <!-- ── Sidebar ── -->
+  <!--  Sidebar  -->
   <aside>
-    <div class="aside-section">
-      <div class="aside-title">Quick Queries</div>
-      <button class="suggestion-chip" onclick="useQuery('Show me any medical patterns for all patients')">
-        🔍 Patterns across all patients
-      </button>
-      <button class="suggestion-chip" onclick="useQuery('What are the most common symptoms and conditions across all patients?')">
-        📊 Population overview
-      </button>
-      <button class="suggestion-chip" onclick="useQuery('Are there any patients with similar conditions? List them.')">
-        🔗 Find similar patients
-      </button>
-      <button class="suggestion-chip" onclick="useQuery('List all active medications and flag any potential interactions')">
-        💊 Medication review
-      </button>
-      <button class="suggestion-chip" onclick="useQuery('Which patients have both headache and chest pain symptoms?')">
-        ⚠️ Symptom co-occurrence
-      </button>
-    </div>
 
     <div class="aside-section" style="padding-bottom: 8px;">
       <div class="aside-title">Patients</div>
@@ -526,17 +516,15 @@
     </div>
   </aside>
 
-  <!-- ── Chat ── -->
+  <!--  Chat  -->
   <div class="chat-area">
     <div id="messages">
       <div class="empty-state" id="empty-state">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-          <path d="M12 17h.01"/>
-        </svg>
-        <h2>Clinical Analysis Ready</h2>
-        <p>Ask anything about your patients — patterns, comparisons, medication reviews, or population-level insights.</p>
+		<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+		<path d="M5 7h14v2H5zm0 12h14v2H5zM3 9h2v10H3zm16 0h2v10h-2zM1 13h2v2H1zm20 0h2v2h-2zM11 5h2v2h-2zM7 3h4v2H7zm1 9h2v4H8zm6 0h2v4h-2z"/>
+		</svg>
+        <h2>AIDA is ready for Analysis</h2>
+        <p>Ask anything about your patients - patterns, comparisons, medication reviews, or population-level insights.</p>
       </div>
     </div>
 
@@ -562,13 +550,13 @@
   const CSRF = '{{ csrf_token }}';
   let messageCount = 0;
 
-  // ── Auto-resize textarea ──
+  //  Auto-resize textarea 
   function autoResize(el) {
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
   }
 
-  // ── Key handler ──
+  //  Key handler 
   function handleKey(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -576,7 +564,7 @@
     }
   }
 
-  // ── Use a suggestion ──
+  //  Use a suggestion 
   function useQuery(text) {
     const input = document.getElementById('question-input');
     input.value = text;
@@ -584,12 +572,12 @@
     input.focus();
   }
 
-  // ── Query a patient directly from sidebar ──
+  //  Query a patient directly from sidebar 
   function queryPatient(patientId, name) {
     useQuery(`Show me the full medical profile and any clinical patterns for patient ${patientId} (${name})`);
   }
 
-  // ── Format AI response markdown-ish ──
+  //  Format AI response markdown-ish 
   function formatResponse(text) {
     return text
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -606,7 +594,7 @@
       .replace(/\n/g, '<br>');
   }
 
-  // ── Append user message ──
+  //  Append user message 
   function appendUserMessage(text) {
     const empty = document.getElementById('empty-state');
     if (empty) empty.remove();
@@ -621,7 +609,7 @@
     scrollDown();
   }
 
-  // ── Append thinking indicator ──
+  //  Append thinking indicator 
   function appendThinking() {
     const div = document.createElement('div');
     div.className = 'message ai';
@@ -636,13 +624,13 @@
     scrollDown();
   }
 
-  // ── Remove thinking ──
+  //  Remove thinking 
   function removeThinking() {
     const t = document.getElementById('thinking');
     if (t) t.remove();
   }
 
-  // ── Append AI response ──
+  //  Append AI response 
   function appendAIMessage(result) {
     messageCount++;
     const id = `msg-${messageCount}`;
@@ -664,19 +652,19 @@
     scrollDown();
   }
 
-  // ── Toggle context drawer ──
+  //  Toggle context drawer 
   function toggleContext(id) {
     const el = document.getElementById(id);
     el.classList.toggle('open');
   }
 
-  // ── Scroll to bottom ──
+  //  Scroll to bottom 
   function scrollDown() {
     const m = document.getElementById('messages');
     m.scrollTop = m.scrollHeight;
   }
 
-  // ── Send query ──
+  //  Send query 
   async function sendQuery() {
     const input = document.getElementById('question-input');
     const question = input.value.trim();
@@ -716,7 +704,7 @@
     }
   }
 
-  // ── Refresh graph ──
+  //  Refresh graph 
   async function refreshGraph() {
     const btn = document.getElementById('refresh-btn');
     btn.disabled = true;
@@ -743,7 +731,7 @@
     }
   }
 
-  // ── Load sidebar stats ──
+  //  Load sidebar stats 
   async function loadStats() {
     try {
       const resp = await fetch('{% url "analytics:stats" %}');
@@ -766,7 +754,7 @@
           <div class="patient-avatar">${initials}</div>
           <div class="patient-info">
             <div class="patient-name">${p.name}</div>
-            <div class="patient-meta">ID:${p.id} · ${p.gender}</div>
+            <div class="patient-meta">ID:${p.national_id} · ${p.gender}</div>
           </div>
         `;
         list.appendChild(item);
@@ -779,7 +767,7 @@
     }
   }
 
-  // ── Toast ──
+  //  Toast 
   function showToast(msg, type = 'success') {
     const t = document.getElementById('toast');
     t.textContent = msg;
