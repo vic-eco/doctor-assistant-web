@@ -9,6 +9,8 @@ paramiko = "*"
 django-environ = "*"
 llama-cpp-python = "*"
 requests = "*"
+librosa = "*"
+pydub = "*"
 
 [dev-packages]
 

@@ -2,17 +2,19 @@ import os
 import json
 import logging
 import requests
+import re
+import json
 from typing import Optional
 from dataclasses import dataclass, field
 from collections import defaultdict
 
+import networkx as nx
 from llama_cpp import Llama
-from django.conf import settings
+from app.llm_loader import get_llm
 
 logger = logging.getLogger(__name__)
 
 HAPI_BASE_URL = os.environ.get("FHIR_URL", "http://localhost:8080/fhir")
-
 
 @dataclass
 class PatientNode:
@@ -78,159 +80,263 @@ class AllergyNode:
     reaction: str
 
     def summary(self) -> str:
-        return f"Allergy: {self.substance} → {self.reaction}"
+        return f"Allergy: {self.substance} -> {self.reaction}"
 
 
 @dataclass
 class KnowledgeGraph:
     """
-    In-memory knowledge graph.
+    In-memory knowledge graph built on NetworkX.
 
-    Nodes: patients, encounters, observations, conditions, medications, allergies
-    Edges: patient→encounter, encounter→observation, patient→condition, etc.
+    Node IDs use namespaced prefixes: "patient:ID", "encounter:ID",
+    "observation:ID", "condition:ID", "medication:ID", "allergy:ID".
+
+    Edges carry a 'rel' attribute describing the relationship type.
     """
-    patients: dict[str, PatientNode] = field(default_factory=dict)
-    encounters: dict[str, EncounterNode] = field(default_factory=dict)
-    observations: dict[str, ObservationNode] = field(default_factory=dict)
-    conditions: dict[str, ConditionNode] = field(default_factory=dict)
-    medications: dict[str, MedicationNode] = field(default_factory=dict)
-    allergies: dict[str, AllergyNode] = field(default_factory=dict)
 
-    # Adjacency: patient_id → list of connected node summaries
-    patient_graph: dict[str, list[str]] = field(default_factory=lambda: defaultdict(list))
+    patients:     dict[str, PatientNode]     = field(default_factory=dict)
+    encounters:   dict[str, EncounterNode]   = field(default_factory=dict)
+    observations: dict[str, ObservationNode] = field(default_factory=dict)
+    conditions:   dict[str, ConditionNode]   = field(default_factory=dict)
+    medications:  dict[str, MedicationNode]  = field(default_factory=dict)
+    allergies:    dict[str, AllergyNode]     = field(default_factory=dict)
+
+    # NetworkX directed multigraph - the real graph used for traversal
+    G: nx.MultiDiGraph = field(default_factory=nx.MultiDiGraph)
+
+    # Reverse index: feature_code (lower) -> {patient_id, ...}
+    _feature_index: dict[str, set[str]] = field(
+        default_factory=lambda: defaultdict(set)
+    )
+
+    @staticmethod
+    def _nid(type_: str, id_: str) -> str:
+        return f"{type_}:{id_}"
+
+    def _index_feature(self, code: str, patient_id: str):
+        if code:
+            self._feature_index[code.lower()].add(patient_id)
+
+
+    # Add to nodes
 
     def add_patient(self, node: PatientNode):
         self.patients[node.id] = node
+        nid = self._nid("patient", node.id)
+        self.G.add_node(nid, type="patient", obj=node)
 
     def add_encounter(self, node: EncounterNode):
         self.encounters[node.id] = node
-        self.patient_graph[node.patient_id].append(node.summary())
+        nid = self._nid("encounter", node.id)
+        self.G.add_node(nid, type="encounter", obj=node)
+        self.G.add_edge(
+            self._nid("patient", node.patient_id), nid, rel="has_encounter"
+        )
 
     def add_observation(self, node: ObservationNode):
         self.observations[node.id] = node
-        self.patient_graph[node.patient_id].append(
-            f"  [{node.encounter_id}] {node.summary()}"
+        nid = self._nid("observation", node.id)
+        self.G.add_node(nid, type="observation", obj=node)
+        # patient -> observation
+        self.G.add_edge(
+            self._nid("patient", node.patient_id), nid, rel="has_observation"
         )
+        # encounter -> observation
+        if node.encounter_id:
+            enc_nid = self._nid("encounter", node.encounter_id)
+            if self.G.has_node(enc_nid):
+                self.G.add_edge(enc_nid, nid, rel="recorded_in")
+        self._index_feature(node.code, node.patient_id)
 
     def add_condition(self, node: ConditionNode):
         self.conditions[node.id] = node
-        self.patient_graph[node.patient_id].append(node.summary())
+        nid = self._nid("condition", node.id)
+        self.G.add_node(nid, type="condition", obj=node)
+        self.G.add_edge(
+            self._nid("patient", node.patient_id), nid, rel="has_condition"
+        )
+        self._index_feature(node.code, node.patient_id)
 
     def add_medication(self, node: MedicationNode):
         self.medications[node.id] = node
-        self.patient_graph[node.patient_id].append(node.summary())
+        nid = self._nid("medication", node.id)
+        self.G.add_node(nid, type="medication", obj=node)
+        self.G.add_edge(
+            self._nid("patient", node.patient_id), nid, rel="has_medication"
+        )
+        self._index_feature(node.medication, node.patient_id)
 
     def add_allergy(self, node: AllergyNode):
         self.allergies[node.id] = node
-        self.patient_graph[node.patient_id].append(node.summary())
+        nid = self._nid("allergy", node.id)
+        self.G.add_node(nid, type="allergy", obj=node)
+        self.G.add_edge(
+            self._nid("patient", node.patient_id), nid, rel="has_allergy"
+        )
+        self._index_feature(node.substance, node.patient_id)
+
+
+    # Traversal methods
+    
+    def get_patient_features(self, patient_id: str) -> set[str]:
+        """ patient -> all directly linked feature nodes. """
+        pnid = self._nid("patient", patient_id)
+        features: set[str] = set()
+        for _, neighbor, data in self.G.out_edges(pnid, data=True):
+            obj = self.G.nodes[neighbor].get("obj")
+            if obj is None:
+                continue
+            if isinstance(obj, ConditionNode):
+                features.add(obj.code.lower())
+            elif isinstance(obj, ObservationNode):
+                if obj.value.lower() not in ("absent", "false", "no"):
+                    features.add(obj.code.lower())
+        return features
+
+    def get_patients_by_feature(self, feature: str) -> list[str]:
+        """ feature name -> list of patient IDs."""
+        feature_lower = feature.lower()
+        matched: set[str] = set()
+        for code, pids in self._feature_index.items():
+            if feature_lower in code or code in feature_lower:
+                matched.update(pids)
+        return list(matched)
+
+    def find_similar_patients(self, patient_id: str, top_n: int = 5) -> list[tuple[str, list[str]]]:
+        """
+        2-hop traversal:
+          hop-1  patient -> features  (get_patient_features)
+          hop-2  feature -> patients  (_feature_index)
+        """
+        target_features = self.get_patient_features(patient_id)
+        if not target_features:
+            return []
+
+        overlap: dict[str, set[str]] = defaultdict(set)
+        for feat in target_features:
+            for pid in self._feature_index.get(feat, set()):
+                if pid != patient_id:
+                    overlap[pid].add(feat)
+
+        ranked = sorted(overlap.items(), key=lambda x: len(x[1]), reverse=True)
+        return [(pid, sorted(feats)) for pid, feats in ranked[:top_n]]
+
+
+    # Context building methods
 
     def get_patient_context(self, patient_id: str) -> str:
-        """Return full graph context for a patient as structured text."""
+        """Full context for a single patient, structured from graph edges."""
         patient = self.patients.get(patient_id)
         if not patient:
             return f"No data found for patient {patient_id}."
 
+        pnid = self._nid("patient", patient_id)
         lines = [f"=== {patient.summary()} ==="]
 
-        # Encounters with their observations grouped
-        patient_encounters = {
-            eid: enc for eid, enc in self.encounters.items()
-            if enc.patient_id == patient_id
-        }
-        for enc_id, enc in patient_encounters.items():
-            lines.append(f"\nEncounter: {enc.reason} [{enc.status}]")
-            enc_obs = [
-                obs for obs in self.observations.values()
-                if obs.patient_id == patient_id and obs.encounter_id == enc_id
-            ]
-            for obs in enc_obs:
-                lines.append(f"  → {obs.code}: {obs.value}")
+        enc_obs: dict[str, list[ObservationNode]] = defaultdict(list)
+        standalone_obs: list[ObservationNode] = []
+        conditions: list[ConditionNode] = []
+        medications: list[MedicationNode] = []
+        allergies: list[AllergyNode] = []
 
-        # Conditions
-        patient_conditions = [
-            c for c in self.conditions.values() if c.patient_id == patient_id
-        ]
-        if patient_conditions:
+        for _, neighbor, data in self.G.out_edges(pnid, data=True):
+            obj = self.G.nodes[neighbor].get("obj")
+            rel = data.get("rel", "")
+            if rel == "has_encounter" and isinstance(obj, EncounterNode):
+                # Collect observations hanging off this encounter
+                enc_nid = self._nid("encounter", obj.id)
+                obs_nodes = [
+                    self.G.nodes[n]["obj"]
+                    for _, n, d in self.G.out_edges(enc_nid, data=True)
+                    if d.get("rel") == "recorded_in"
+                    and isinstance(self.G.nodes[n].get("obj"), ObservationNode)
+                ]
+                lines.append(f"\nEncounter: {obj.reason} [{obj.status}]")
+                for o in obs_nodes:
+                    lines.append(f"  -> {o.code}: {o.value}")
+            elif rel == "has_observation" and isinstance(obj, ObservationNode):
+                standalone_obs.append(obj)
+            elif rel == "has_condition" and isinstance(obj, ConditionNode):
+                conditions.append(obj)
+            elif rel == "has_medication" and isinstance(obj, MedicationNode):
+                medications.append(obj)
+            elif rel == "has_allergy" and isinstance(obj, AllergyNode):
+                allergies.append(obj)
+
+        if standalone_obs:
+            lines.append("\nObservations (unlinked to encounter):")
+            for o in standalone_obs:
+                lines.append(f"  • {o.code}: {o.value}")
+        if conditions:
             lines.append("\nConditions:")
-            for c in patient_conditions:
+            for c in conditions:
                 lines.append(f"  • {c.code} [{c.status}]")
-
-        # Medications
-        patient_meds = [
-            m for m in self.medications.values() if m.patient_id == patient_id
-        ]
-        if patient_meds:
+        if medications:
             lines.append("\nMedications:")
-            for m in patient_meds:
+            for m in medications:
                 lines.append(f"  • {m.medication} [{m.status}]")
-
-        # Allergies
-        patient_allergies = [
-            a for a in self.allergies.values() if a.patient_id == patient_id
-        ]
-        if patient_allergies:
+        if allergies:
             lines.append("\nAllergies:")
-            for a in patient_allergies:
-                lines.append(f"  • {a.substance} → {a.reaction}")
+            for a in allergies:
+                lines.append(f"  • {a.substance} -> {a.reaction}")
+
+        return "\n".join(lines)
+
+    def get_similar_patients_subgraph(self, patient_id: str, top_n: int = 5) -> str:
+        """
+        Focused context for similarity queries.
+        Only includes data relevant to the shared features - not full histories.
+        """
+        target_features = self.get_patient_features(patient_id)
+        similar = self.find_similar_patients(patient_id, top_n=top_n)
+
+        if not similar:
+            return (
+                self.get_patient_context(patient_id)
+                + "\n\nNo patients found with overlapping features."
+            )
+
+        lines = ["=== BASE PATIENT ===", self.get_patient_context(patient_id)]
+        lines.append("\n=== SIMILAR PATIENTS (ranked by shared features) ===")
+
+        for pid, shared_features in similar:
+            patient = self.patients.get(pid)
+            if not patient:
+                continue
+            lines.append(f"\n--- {patient.summary()} ---")
+            lines.append(f"Shared features ({len(shared_features)}): {', '.join(shared_features)}")
+
+            # Only pull the matching nodes from the graph — not the full record
+            pnid = self._nid("patient", pid)
+            for _, neighbor, data in self.G.out_edges(pnid, data=True):
+                obj = self.G.nodes[neighbor].get("obj")
+                if isinstance(obj, ConditionNode) and obj.code.lower() in target_features:
+                    lines.append(f"  • Condition: {obj.code} [{obj.status}]")
+                elif (
+                    isinstance(obj, ObservationNode)
+                    and obj.code.lower() in target_features
+                    and obj.value.lower() not in ("absent", "false", "no")
+                ):
+                    lines.append(f"  • Observation: {obj.code}: {obj.value}")
 
         return "\n".join(lines)
 
     def get_cross_patient_context(self, patient_ids: list[str]) -> str:
-        """Return combined context for multiple patients for comparison."""
-        sections = []
-        for pid in patient_ids:
-            sections.append(self.get_patient_context(pid))
-        return "\n\n".join(sections)
+        return "\n\n".join(self.get_patient_context(pid) for pid in patient_ids)
 
-    def find_similar_patients(self, patient_id: str) -> list[tuple[str, list[str]]]:
-        """Find patients with overlapping conditions/symptoms."""
-        target = self.patients.get(patient_id)
-        if not target:
-            return []
-
-        target_conditions = {
-            c.code.lower() for c in self.conditions.values()
-            if c.patient_id == patient_id
-        }
-        target_obs = {
-            o.code.lower() for o in self.observations.values()
-            if o.patient_id == patient_id
-        }
-        target_features = target_conditions | target_obs
-
-        similarities = []
-        for pid, patient in self.patients.items():
-            if pid == patient_id:
-                continue
-            other_conditions = {
-                c.code.lower() for c in self.conditions.values()
-                if c.patient_id == pid
-            }
-            other_obs = {
-                o.code.lower() for o in self.observations.values()
-                if o.patient_id == pid
-            }
-            other_features = other_conditions | other_obs
-            shared = list(target_features & other_features)
-            if shared:
-                similarities.append((pid, shared))
-
-        return sorted(similarities, key=lambda x: len(x[1]), reverse=True)
-
-    def get_all_symptoms_and_conditions(self) -> dict[str, list[str]]:
-        """symptom/condition → list of patient IDs. (reverse index)"""
-        mapping = defaultdict(list)
-        for c in self.conditions.values():
-            mapping[c.code.lower()].append(c.patient_id)
-        for o in self.observations.values():
-            if o.value not in ("false", "False", "no", "absent"):
-                mapping[o.code.lower()].append(o.patient_id)
-        return dict(mapping)
-
+    def get_population_summary(self, top_n: int = 20) -> str:
+        """top features across all patients."""
+        lines = ["=== POPULATION SUMMARY ==="]
+        ranked = sorted(
+            self._feature_index.items(), key=lambda x: len(x[1]), reverse=True
+        )
+        for code, pids in ranked[:top_n]:
+            lines.append(f"{code}: {len(pids)} patient(s) — {', '.join(sorted(pids))}")
+        return "\n".join(lines)
 
 
 class FHIRClient:
-    """client for HAPI FHIR REST API."""
+    """Client for HAPI FHIR REST API."""
 
     def __init__(self, base_url: str = HAPI_BASE_URL):
         self.base_url = base_url.rstrip("/")
@@ -281,7 +387,6 @@ class GraphBuilder:
         return resource.get("id", "unknown")
 
     def _resolve_ref(self, ref: str) -> str:
-        """Extract ID from a FHIR reference like 'Patient/123' or 'urn:uuid:...'"""
         if not ref:
             return ""
         if "/" in ref:
@@ -299,7 +404,6 @@ class GraphBuilder:
 
         graph.add_patient(PatientNode(id=pid, name=name, gender=gender, national_id=nid))
 
-        # Encounters
         for enc in self.client.get_encounters(pid):
             eid = enc.get("id", "")
             reason = ""
@@ -312,7 +416,6 @@ class GraphBuilder:
                 status=enc.get("status", "unknown")
             ))
 
-        # Observations
         for obs in self.client.get_observations(pid):
             oid = obs.get("id", "")
             code = obs.get("code", {}).get("text", "Unknown")
@@ -333,21 +436,18 @@ class GraphBuilder:
                 code=code, value=value
             ))
 
-        # Conditions
         for cond in self.client.get_conditions(pid):
             cid = cond.get("id", "")
             code = cond.get("code", {}).get("text", "Unknown")
             status = cond.get("clinicalStatus", {}).get("text", "unknown")
             graph.add_condition(ConditionNode(id=cid, patient_id=pid, code=code, status=status))
 
-        # Medications
         for med in self.client.get_medications(pid):
             mid = med.get("id", "")
             medication = med.get("medicationCodeableConcept", {}).get("text", "Unknown")
             status = med.get("status", "unknown")
             graph.add_medication(MedicationNode(id=mid, patient_id=pid, medication=medication, status=status))
 
-        # Allergies
         for allergy in self.client.get_allergies(pid):
             aid = allergy.get("id", "")
             substance = allergy.get("code", {}).get("text", "Unknown")
@@ -373,45 +473,72 @@ class GraphBuilder:
         return graph
 
 
-def classify_query(query: str) -> dict:
+# Query planner
+
+PLANNER_PROMPT = """You are a medical query parser. Extract a structured graph traversal plan from the doctor's question.
+
+Return ONLY a valid JSON object.
+DO NOT include explanations, markdown, or any text before or after the JSON.
+DO NOT wrap the JSON in code fences
+
+Traversal goal guide:
+- find_similar: "patients like X", "similar symptoms", "who else has this"
+- get_history: "history of patient X", "what does patient X have", "show me patient X"
+- compare: "compare patient A and B", "differences between X and Y"
+- find_by_symptom: "who has diabetes", "patients with fever", no specific patient anchor
+- population_stats: "common conditions", "most frequent", "across all patients"
+
+
+Return ONLY a valid JSON object with exactly these fields:
+
+If more than one patient IDs are present:
+- Put the FIRST patient ID in "anchor_value"
+- Put ALL remaining patient IDs in "extra_patient_ids"
+
+Schema
+{{
+  "traversal_goal": one of ["find_similar", "get_history", "compare", "find_by_symptom", "population_stats"],
+  "anchor_type": one of ["patient_id", "national_id", "symptom", "condition", "medication", "population", "allergy", null],
+  "anchor_value": the specific value (patient ID, symptom name, etc.) or null if not applicable,
+  "extra_patient_ids": list of additional patient IDs for comparison queries (may be empty),
+  "filters": list of any extra constraints mentioned (e.g. ["active conditions only", "female patients"])
+}}
+
+
+(Respond with complete JSON. Do not stop early. The JSON format must match exactly)"""
+
+
+def plan_query(llm: Llama, question: str) -> dict:
     """
-    Simple heuristic to extract patient IDs and query intent from natural language.
-    Returns: {intent, patient_ids, raw_query}
+    Extract a structured traversal plan from a natural language query.
+    Falls back to a safe default if parsing fails.
     """
-    import re
-    query_lower = query.lower()
-
-    # Extract any numbers that look like patient IDs
-    patient_ids = re.findall(r'\bpatient[s]?\s*#?(\d+)\b|\bid[:\s]*(\d+)', query_lower)
-    flat_ids = [pid for group in patient_ids for pid in group if pid]
-
-    # Also find bare numbers if "patient" appears nearby
-    if not flat_ids:
-        flat_ids = re.findall(r'\b(\d{1,6})\b', query)
-
-    # Determine intent
-    if any(w in query_lower for w in ["compare", "similar", "same", "both", "differ"]):
-        intent = "comparison"
-    elif any(w in query_lower for w in ["pattern", "trend", "history", "overview", "analysis"]):
-        intent = "pattern_analysis"
-    elif any(w in query_lower for w in ["all patients", "across", "population", "common"]):
-        intent = "population"
-    elif any(w in query_lower for w in ["drug", "medication", "allerg", "prescri"]):
-        intent = "medication"
-    else:
-        intent = "general"
-
-    return {
-        "intent": intent,
-        "patient_ids": flat_ids[:5],  # max 5 patients
-        "raw_query": query,
-    }
+    try:
+        response = llm.create_chat_completion(
+            messages=[
+                {"role": "system", "content": PLANNER_PROMPT},
+                {"role": "user", "content": question},
+            ],
+            max_tokens=1024,
+            temperature=0.0,
+        )
+        raw = response["choices"][0]["message"]["content"].strip()
+        print("RAW LLM OUTPUT:", repr(raw))
+        data = extract_json(raw)
+        print("EXTRACTED DATA", data)
+        return data
+    except Exception as e:
+        logger.warning(f"Query planner failed ({e}), falling back to population_stats")
+        return {
+            "traversal_goal": "population_stats",
+            "anchor_type": None,
+            "anchor_value": None,
+            "extra_patient_ids": [],
+            "filters": [],
+        }
 
 
 class GraphRAGEngine:
-    """
-    Main engine: retrieves graph context and calls LLM for analysis.
-    """
 
     SYSTEM_PROMPT = """You are a clinical decision support assistant helping doctors analyze patient data.
 You have access to structured medical records including encounters, observations, conditions, medications, and allergies.
@@ -423,22 +550,16 @@ When analyzing patient data:
 - Be concise but thorough — doctors need actionable insights, not lengthy prose
 - Always clarify that you are providing decision support, not a diagnosis
 - Use medical terminology appropriately
-- If not patients match the doctor's query, say so. Don't return patients that don't answer the question
+- If no patients match the doctor's query, say so clearly
 
 Format your response with clear sections when appropriate. Be specific and cite the data provided."""
 
-    #TODO change to use _getLLM (change _getLLM to have context of 9000)
-    def __init__(self, graph=None):
+    def __init__(self, graph: Optional[KnowledgeGraph] = None):
         self.graph = graph
-        model_path = settings.BASE_DIR / "model_files" / "medgemma-1.5-4b-it-Q4_K_M.gguf"
-        self._llm = Llama(
-            model_path=str(model_path),
-            n_ctx=9000,      
-            n_gpu_layers=0, 
-            verbose=False,
-        )
+        self._llm = get_llm()
 
-    def refresh_graph(self):
+
+    def refresh_graph(self) -> KnowledgeGraph:
         """Rebuild the knowledge graph from HAPI FHIR."""
         client = FHIRClient()
         builder = GraphBuilder(client)
@@ -446,76 +567,113 @@ Format your response with clear sections when appropriate. Be specific and cite 
         logger.info(f"Graph refreshed: {len(self.graph.patients)} patients")
         return self.graph
 
-    def _build_context(self, classified: dict) -> str:
-        """Build the graph context string for the query."""
+
+    def _resolve_patient(self, value: str) -> Optional[str]:
+        """Resolve a patient by FHIR ID or national ID. Returns FHIR patient ID or None."""
+        if not value or not self.graph:
+            return None
+        value = str(value).strip()
+        if value in self.graph.patients:
+            return value
+        for pid, patient in self.graph.patients.items():
+            if patient.national_id == value:
+                return pid
+        return None
+
+    def _build_context(self, plan: dict) -> str:
         if not self.graph:
             return "No patient data available. Please refresh the knowledge graph."
 
-        intent = classified["intent"]
-        patient_ids = classified["patient_ids"]
+        goal       = plan.get("traversal_goal", "population_stats")
+        anchor_val = plan.get("anchor_value")
+        extra_ids  = plan.get("extra_patient_ids", []) or []
 
-        if intent == "population":
-            # Aggregate across all patients
-            symptom_map = self.graph.get_all_symptoms_and_conditions()
-            lines = ["=== POPULATION-WIDE CLINICAL DATA ===\n"]
-            for symptom, pids in sorted(symptom_map.items(), key=lambda x: -len(x[1])):
-                if len(pids) > 1:
-                    lines.append(f"'{symptom}' → {len(pids)} patients: {', '.join(pids)}")
-            all_context = "\n".join(lines)
-            # Also append all patient records for full context
-            all_patient_ctx = self.graph.get_cross_patient_context(
-                list(self.graph.patients.keys())
-            )
-            return all_context + "\n\n" + all_patient_ctx
+        if goal == "find_similar":
+            pid = self._resolve_patient(anchor_val)
+            if not pid:
+                return self._no_patient_error(anchor_val)
+            return self.graph.get_similar_patients_subgraph(pid)
 
-        elif patient_ids:
-            # Try to match by ID or by national_id
-            resolved = []
-            for qid in patient_ids:
-                # Direct match
-                if qid in self.graph.patients:
-                    resolved.append(qid)
-                else:
-                    # Match by national_id
-                    for pid, patient in self.graph.patients.items():
-                        if patient.national_id == qid:
-                            resolved.append(pid)
-                            break
+        elif goal == "get_history":
+            pid = self._resolve_patient(anchor_val)
+            if not pid:
+                return self._no_patient_error(anchor_val)
+            return self.graph.get_patient_context(pid)
 
-            if not resolved:
-                # Fall back to listing all patients
-                available = ", ".join(
-                    f"{p.id} ({p.name}, natID:{p.national_id})"
-                    for p in self.graph.patients.values()
-                )
+        elif goal == "compare":
+            ids_to_compare = []
+            for v in [anchor_val] + extra_ids:
+                pid = self._resolve_patient(str(v)) if v else None
+                if pid:
+                    ids_to_compare.append(pid)
+            if len(ids_to_compare) < 2:
                 return (
-                    f"Could not find patients with IDs {patient_ids}.\n"
-                    f"Available patients: {available}"
+                    "Could not resolve enough patients for comparison. "
+                    f"Resolved: {ids_to_compare}. "
+                    f"Available: {self._available_patients_hint()}"
                 )
+            
+            # full record of each patient
+            ctx = self.graph.get_cross_patient_context(ids_to_compare)
 
-            if intent == "comparison" and len(resolved) >= 2:
-                ctx = self.graph.get_cross_patient_context(resolved)
-                # Add similarity analysis
-                shared = self.graph.find_similar_patients(resolved[0])
-                relevant = [(pid, features) for pid, features in shared if pid in resolved[1:]]
-                if relevant:
-                    ctx += "\n\n=== SHARED FEATURES ==="
-                    for pid, features in relevant:
-                        ctx += f"\nShared with {pid}: {', '.join(features)}"
-                return ctx
-            else:
-                return self.graph.get_cross_patient_context(resolved)
+            # find similar patients to anchor patient
+            similar = self.graph.find_similar_patients(ids_to_compare[0])
+            
+            # extract only relevant features from comparison patients
+            relevant = [(pid, feats) for pid, feats in similar if pid in ids_to_compare[1:]]
+            if relevant:
+                ctx += "\n\n=== SHARED FEATURES ==="
+                for pid, feats in relevant:
+                    ctx += f"\nShared with {pid}: {', '.join(feats)}"
+            return ctx
+
+        elif goal == "find_by_symptom":
+            if not anchor_val:
+                return "No symptom or condition specified. Please name the symptom to search for."
+            pids = self.graph.get_patients_by_feature(anchor_val)
+            if not pids:
+                return f"No patients found with a feature matching '{anchor_val}'."
+            # Return focused context: only the matching feature data per patient
+            lines = [f"=== PATIENTS WITH FEATURE MATCHING '{anchor_val}' ===\n"]
+            for pid in pids[:10]:
+                patient = self.graph.patients.get(pid)
+                if not patient:
+                    continue
+                lines.append(f"--- {patient.summary()} ---")
+                pnid = self.graph._nid("patient", pid)
+                for _, neighbor, data in self.graph.G.out_edges(pnid, data=True):
+                    obj = self.graph.G.nodes[neighbor].get("obj")
+                    if isinstance(obj, ConditionNode) and anchor_val.lower() in obj.code.lower():
+                        lines.append(f"  • Condition: {obj.code} [{obj.status}]")
+                    elif isinstance(obj, ObservationNode) and anchor_val.lower() in obj.code.lower():
+                        lines.append(f"  • Observation: {obj.code}: {obj.value}")
+                lines.append("")
+            return "\n".join(lines)
+
+        elif goal == "population_stats":
+            return self.graph.get_population_summary()
 
         else:
-            # No specific patients mentioned, use all data
-            return self.graph.get_cross_patient_context(
-                list(self.graph.patients.keys())
-            )
+            logger.warning(f"Unknown traversal goal '{goal}', returning population summary.")
+            return self.graph.get_population_summary()
+
+    def _no_patient_error(self, anchor_val) -> str:
+        return (
+            f"Could not find a patient matching '{anchor_val}'.\n"
+            f"Available patients: {self._available_patients_hint()}"
+        )
+
+    def _available_patients_hint(self) -> str:
+        if not self.graph:
+            return "(graph not loaded)"
+        return ", ".join(
+            f"{p.id} ({p.name}, natID:{p.national_id})"
+            for p in list(self.graph.patients.values())[:20]
+        )
+
 
     def query(self, question: str) -> dict:
-        """
-        Main entry point. Returns {answer, context_used, patient_ids, intent}
-        """
+
         if not self.graph:
             try:
                 self.refresh_graph()
@@ -523,22 +681,25 @@ Format your response with clear sections when appropriate. Be specific and cite 
                 return {
                     "answer": f"Could not connect to FHIR server: {e}",
                     "context_used": "",
-                    "patient_ids": [],
+                    "plan": {},
                     "intent": "error",
                 }
 
-        classified = classify_query(question)
-        context = self._build_context(classified)
+        # plan the traversal
+        plan = plan_query(self._llm, question)
+        logger.info(f"Traversal plan: {plan}")
 
-        user_message = f"""Here is the patient data from the medical records system:
+        # execute traversal -> focused context
+        context = self._build_context(plan)
 
-{context}
-
----
-
-Doctor's question: {question}
-
-Please analyze the data and provide a clinical assessment."""
+        # call LLM with the focused context
+        user_message = (
+            f"Here is the relevant patient data retrieved from the medical records system:\n\n"
+            f"{context}\n\n"
+            f"---\n\n"
+            f"Doctor's question: {question}\n\n"
+            f"Please analyze the data and provide a clinical assessment."
+        )
 
         try:
             response = self._llm.create_chat_completion(
@@ -549,8 +710,6 @@ Please analyze the data and provide a clinical assessment."""
                 max_tokens=1500,
                 temperature=0.3,
             )
-            # response.raise_for_status()
-            # data = response.json()
             answer = response["choices"][0]["message"]["content"]
         except Exception as e:
             answer = f"Error calling AI model: {e}"
@@ -558,7 +717,21 @@ Please analyze the data and provide a clinical assessment."""
         return {
             "answer": answer,
             "context_used": context,
-            "patient_ids": classified["patient_ids"],
-            "intent": classified["intent"],
+            "plan": plan,
             "patient_count": len(self.graph.patients),
         }
+
+def extract_json(raw: str) -> dict:
+    # Remove markdown fences
+    cleaned = re.sub(r"```json|```", "", raw)
+
+    # Find all JSON-like objects
+    matches = re.findall(r"\{[\s\S]*?\}", cleaned)
+
+    for m in matches:
+        try:
+            return json.loads(m)
+        except json.JSONDecodeError:
+            continue
+
+    raise ValueError("No valid JSON found")

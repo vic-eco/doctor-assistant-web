@@ -31,7 +31,6 @@ def analytics_home(request):
 
 @login_required
 @require_http_methods(["POST"])
-@csrf_exempt  # Use proper CSRF in production; add X-CSRFToken header from JS
 def query_endpoint(request):
     """
     POST /analytics/query/
@@ -57,7 +56,6 @@ def query_endpoint(request):
 
 @login_required
 @require_http_methods(["POST"])
-@csrf_exempt
 def refresh_graph(request):
     """
     POST /analytics/refresh/

@@ -28,6 +28,7 @@ from fhir_generation.observation import build_observations
 from fhir_generation.patient import build_patient
 
 from .medgemma_local import run_model
+from .asr import transcribe_audio
 
 from app.models import Interview
 
@@ -125,7 +126,7 @@ def save_audio(request):
         patient_identifier = request.POST.get("patient_identifier")
         interview_type = request.POST.get("interview_type")
 
-        transcript = _hpc_call(audio_file)
+        transcript = transcribe_audio(audio_file)
         result = run_model(transcript)
     
         if interview_type == Interview.NEW:
@@ -693,7 +694,7 @@ def _get_patient_details(id: str):
     }
 
 def _build_encounter_obj(entry):
-    url = re.search("Encounter/\d+", entry["fullUrl"])
+    url = re.search(r"Encounter/\d+", entry["fullUrl"])
     url = url.group()
     return{
         "url": url,
@@ -735,77 +736,3 @@ def _build_allergy_obj(entry):
 
 def _sort_by_date(items):
     return sorted(items, key=lambda x: x.get("last_updated") or "", reverse=True)
-
-def _hpc_call(audio_file):
-
-    ssh = paramiko.SSHClient()
-
-    # Trust remote host automatically
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-    # private_key_path = r"C:\Users\Power\Documents\HPC_Keys\id_rsa.pem"
-    key = paramiko.RSAKey.from_private_key_file(settings.SSH_KEY_PATH)
-
-    ssh.connect(
-        settings.SSH_HOST, 
-        port=22, 
-        username=settings.SSH_USER, 
-        pkey=key, 
-        timeout=10
-    )
-
-    # File transfer channel
-    sftp = ssh.open_sftp()
-
-    remote_audio_path = settings.REMOTE_INPUT_PATH
-    sftp.putfo(audio_file, remote_audio_path)
-    print("Uploaded audio:", remote_audio_path)
-
-    cmd = "cd python/test && sbatch batch.sh"
-    stdin, stdout, stderr = ssh.exec_command(cmd)
-
-    result = stdout.read().decode()
-    print("sbatch output:", result)
-
-    # Extract job ID
-    match = re.search(r"Submitted batch job (\d+)", result)
-    if not match:
-        raise RuntimeError("Could not get job ID from sbatch output")
-
-    job_id = match.group(1)
-    print("Job ID:", job_id)
-
-    # Wait for job to finish
-    def job_running(job_id):
-        stdin, stdout, stderr = ssh.exec_command(f"squeue -j {job_id}")
-        output = stdout.read().decode().strip()
-        return len(output.split("\n")) > 1  # if more than header line -> job still running
-
-    print("Waiting for job to finish...")
-
-    while job_running(job_id):
-        time.sleep(10)
-
-    print("Job finished.")
-
-    # Retrieve response
-    # remote_output = "/home/vecono01/python/test/response.out"
-    # local_output = "response.out"
-
-    # sftp.get(remote_output, local_output)   # download file
-    # print("Downloaded:", local_output)
-
-    remote_output = settings.REMOTE_OUTPUT_PATH
-
-    with sftp.file(remote_output, "r") as remote_file:
-        file_content = remote_file.read().decode()   # read as string
-        # data = json.loads(file_content)
-
-    sftp.close()
-    ssh.close()
-
-    return file_content
-
-    # # Read and print output
-    # with open(local_output, "r") as f:
-    #     print(f.read())
