@@ -128,7 +128,9 @@ def process_transcript(transcript: str, llm: Llama, use_chunking: bool = False) 
     base_prompt = """Extract only explicitly stated facts from the text.
 Do not infer diagnoses.
 Do not add medical knowledge.
-If patient states that they do not have a specific symptom include it with a false present value.
+If patient states that they do not have a specific symptom you MUST include it with a false present value.
+For example: "Any chest pain", "No" -> "symptoms": {{"text": chest pain, "present": false}}
+If doctor mentions medication but does not actually prescribe it to the patient, do not include it.
 Return ONLY valid JSON.
 
 Schema:
@@ -157,6 +159,7 @@ Schema:
   "medications": [
     {{
       "text": string,
+      "dosage": {{"text": string}}
       "status": "active" | "stopped" | null
     }}
   ],
@@ -203,7 +206,7 @@ def run_model(transcript):
 #     transcript = """
 # Hello, I'm Dr. Brown. Can you confirm your name and age?
 # Yes, my name is John Miller. I'm 54 years old.
-# And your gender?
+# And your gender?  
 # Male.
 # What brings you in today?
 # I've been having chest pain since this morning, about two hours now.
