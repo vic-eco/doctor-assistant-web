@@ -159,7 +159,7 @@ Schema:
   "medications": [
     {{
       "text": string,
-      "dosage": {{"text": string}}
+      "dosage": string or null,
       "status": "active" | "stopped" | null
     }}
   ],
