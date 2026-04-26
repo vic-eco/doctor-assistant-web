@@ -9,7 +9,8 @@ load_dotenv()
 
 pipe = pipeline(
     "automatic-speech-recognition",
-    model="distil-whisper/distil-small.en",
+    model="distil-whisper/distil-medium.en",
+	return_timestamps=True,
     generate_kwargs={
         "temperature": 0.0,
         "condition_on_prev_tokens": False,
@@ -33,7 +34,7 @@ def transcribe_audio(recording: str):
 	bits = audio_seg.sample_width * 8
 	samples /= np.iinfo(np.int16).max if bits == 16 else np.iinfo(np.int32).max
 
-	result = pipe(samples, chunk_length_s=20, stride_length_s=2)
+	result = pipe(samples)
 	return result["text"].replace("</s>", "").strip()
 
 if __name__ == "__main__":

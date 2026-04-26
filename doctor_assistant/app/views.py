@@ -127,7 +127,9 @@ def save_audio(request):
         interview_type = request.POST.get("interview_type")
 
         transcript = transcribe_audio(audio_file)
+        print("==== TRANSCRIPT ==== \n", transcript)
         result = run_model(transcript)
+        print(" ==== LLM Output ==== \n", result)
     
         if interview_type == Interview.NEW:
             patient_reference = "urn:uuid:patient"
@@ -161,7 +163,7 @@ def save_audio(request):
                 allergies
             )
 
-        print("BUNDLE")
+        print(" ==== BUNDLE ==== \n")
         print(bundle)
 
         request.session["bundle"] = bundle 
@@ -184,7 +186,7 @@ def results(request):
     
     if not bundle:
         print("DEBUG: No bundle found, redirecting to home")
-        return redirect("home")  # Or wherever your main page is
+        return redirect("home")
     
     # Parse the bundle if it's a string
     if isinstance(bundle, str):
@@ -723,6 +725,7 @@ def _build_condition_obj(entry):
 def _build_medication_obj(entry):
     return{
         "text": entry["resource"]["medicationCodeableConcept"]["text"],
+        "dosage": entry["resource"]["dosage"][0]["text"],
         "status": entry["resource"]["status"],
         "last_updated": entry["resource"]["meta"]["lastUpdated"]
     }

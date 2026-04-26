@@ -404,6 +404,7 @@
         <div class="item-top">
           <div class="item-name">{{ medication.text }}</div>
           <span class="item-date">{{ medication.last_updated }}</span>
+		  {% if medication.dosage != "Null" %}<div class="obs-note"> {{ medication.dosage }}</div>{% endif %}
         </div>
         <div class="item-meta">
           <span class="badge {% if medication.status == 'active' %}badge-active{% else %}badge-inactive{% endif %}">

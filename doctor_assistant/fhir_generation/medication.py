@@ -12,7 +12,12 @@ def build_medications(meds, patient_reference):
 				},
 				"medicationCodeableConcept": {
 					"text": m["text"]
-				}
+				},
+                "dosage": [
+                    {
+						"text": m["dosage"]
+					}
+                ]
 			},
 			"request": {
 				"method": "POST",
