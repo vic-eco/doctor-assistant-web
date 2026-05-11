@@ -186,6 +186,14 @@
                                        value="{{ medication.medicationCodeableConcept.text }}"
                                        placeholder="Medication name">
                             </div>
+							<div class="col-md-6 mb-2">
+                                <label class="form-label small">Medication Dosage</label>
+                                <input type="text" 
+                                       class="form-control form-control-sm" 
+                                       name="medication_dosage_medication-{{ forloop.counter }}" 
+                                       value="{{ medication.dosage.0.text }}"
+                                       placeholder="Medication Dosage">
+                            </div>
                             <div class="col-md-5 mb-2">
                                 <label class="form-label small">Status</label>
                                 <select class="form-select form-select-sm" 
@@ -430,6 +438,13 @@
                            class="form-control form-control-sm" 
                            name="medication_name_medication-${medCounter}" 
                            placeholder="Medication name">
+                </div>
+				<div class="col-md-6 mb-2">
+                    <label class="form-label small">Medication Dosage</label>
+                    <input type="text" 
+                           class="form-control form-control-sm" 
+                           name="medication_dosage_medication-${medCounter}" 
+                           placeholder="Medication dosage">
                 </div>
                 <div class="col-md-5 mb-2">
                     <label class="form-label small">Status</label>

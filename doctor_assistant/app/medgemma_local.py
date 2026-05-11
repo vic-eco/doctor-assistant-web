@@ -26,15 +26,26 @@ def repair_json(text: str) -> str:
 
 def extract_json_from_response(text: str) -> Dict[str, Any]:
     try:
-        start = text.find("{")
-        end = text.rfind("}")
-        if start != -1 and end != -1:
-            return json.loads(text[start:end+1])
+        if not text.startswith("{"):
+            text = "{" + text
+        depth = 0
+        for i, ch in enumerate(text):
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    text = text[:i + 1]
+                    break
         return json.loads(text)
-    except Exception as e:
-        print("JSON parse error:", e)
-        print("Raw output:", text[:300])
-        return None
+    except json.JSONDecodeError:
+        print("First parse failed, attempting repair...")
+        try:
+            return json.loads(repair_json(text))
+        except Exception as e:
+            print("JSON parse error after repair:", e)
+            print("Raw output:", text[:300])
+            return None
 
 
 def smart_merge_extractions(extractions: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -101,7 +112,7 @@ def semantic_chunking(transcript: str, max_exchanges: int = 6) -> List[str]:
     return chunks
 
 
-def generate_text(prompt: str, llm: Llama, max_tokens: int = 1024) -> str:
+def generate_text(prompt: str, llm: Llama, max_tokens: int = 2048) -> str:
     response = llm.create_chat_completion(
         messages=[
             {
@@ -112,15 +123,17 @@ def generate_text(prompt: str, llm: Llama, max_tokens: int = 1024) -> str:
                     "Do not include <end_of_turn>."
                 )
             },
-            {"role": "user", "content": prompt}
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": "{"}
         ],
         max_tokens=max_tokens,
         temperature=0.0,
         top_p=1.0,
     )
 
-    text = response["choices"][0]["message"]["content"]
-    return repair_json(text)
+    text = "{" + response["choices"][0]["message"]["content"]
+    print(f"Raw output: {repr(text)}")
+    return text
 
 
 def process_transcript(transcript: str, llm: Llama, use_chunking: bool = False) -> Dict[str, Any]:
@@ -128,10 +141,15 @@ def process_transcript(transcript: str, llm: Llama, use_chunking: bool = False) 
     base_prompt = """Extract only explicitly stated facts from the text.
 Do not infer diagnoses.
 Do not add medical knowledge.
-If patient states that they do not have a specific symptom you MUST include it with a false present value.
-For example: "Any chest pain", "No" -> "symptoms": {{"text": chest pain, "present": false}}
+If patient states that they do not have a specific symptom you MUST include it with a false present value. For example: "Any chest pain", "No" -> "symptoms": {{"text": chest pain, "present": false}}
 If doctor mentions medication but does not actually prescribe it to the patient, do not include it.
-Return ONLY valid JSON.
+Medication example: 
+{{
+      "text": amlodipine,
+      "dosage": 50mg daily,
+      "status": "active"
+}}
+Return ONLY valid JSON and nothing else. The Schema is provided below
 
 Schema:
 {{
@@ -171,11 +189,10 @@ Schema:
   ]
 }}
 
-Text:
+Transcript:
 {text}
 
-JSON:
-(Respond with complete JSON. Do not stop early. The JSON format must match exactly)
+Respond with the JSON object only.
 """
 
     if use_chunking:

@@ -414,6 +414,8 @@ def update_bundle(request):
     while True:
         med_name_key = f"medication_name_medication-{med_index}"
         med_status_key = f"medication_status_medication-{med_index}"
+        med_dosage_key = f"medication_dosage_medication-{med_index}"
+
         
         if med_name_key not in request.POST:
             med_index += 1
@@ -423,6 +425,9 @@ def update_bundle(request):
         
         med_name = request.POST.get(med_name_key, "").strip()
         med_status = request.POST.get(med_status_key, "active")
+        med_dosage = request.POST.get(med_dosage_key, "").strip()
+
+        print("MED DOSAGE", med_dosage)
         
         if not med_name:
             med_index += 1
@@ -438,7 +443,12 @@ def update_bundle(request):
                 },
                 "medicationCodeableConcept": {
                     "text": med_name
-                }
+                },
+                "dosage":[
+                    {
+                        "text": med_dosage
+                    }
+                ]
             },
             "request": {
                 "method": "POST",
@@ -723,11 +733,15 @@ def _build_condition_obj(entry):
     }
 
 def _build_medication_obj(entry):
+    resource = entry["resource"]
+    dosage_list = resource.get("dosage", [])
+    dosage_text = dosage_list[0].get("text") if dosage_list else None
+
     return{
-        "text": entry["resource"]["medicationCodeableConcept"]["text"],
-        "dosage": entry["resource"]["dosage"][0]["text"],
-        "status": entry["resource"]["status"],
-        "last_updated": entry["resource"]["meta"]["lastUpdated"]
+        "text": resource["medicationCodeableConcept"]["text"],
+        "dosage": dosage_text,
+        "status": resource["status"],
+        "last_updated": resource["meta"]["lastUpdated"]
     }
 
 def _build_allergy_obj(entry):

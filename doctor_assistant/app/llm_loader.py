@@ -15,9 +15,9 @@ def get_llm():
                 print("Loading MedGemma GGUF model...")
                 _llm = Llama(
                     model_path=str(model_path),
-                    n_ctx=4096,
+                    n_ctx=8192,
                     n_threads=8,
-                    n_gpu_layers=0
+                    n_gpu_layers=0,
                 )
                 print("Model loaded.")
 
