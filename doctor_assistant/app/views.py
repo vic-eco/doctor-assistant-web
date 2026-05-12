@@ -426,8 +426,6 @@ def update_bundle(request):
         med_name = request.POST.get(med_name_key, "").strip()
         med_status = request.POST.get(med_status_key, "active")
         med_dosage = request.POST.get(med_dosage_key, "").strip()
-
-        print("MED DOSAGE", med_dosage)
         
         if not med_name:
             med_index += 1

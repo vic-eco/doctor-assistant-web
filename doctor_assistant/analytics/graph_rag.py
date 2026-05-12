@@ -108,6 +108,10 @@ class KnowledgeGraph:
     _feature_index: dict[str, set[str]] = field(
         default_factory=lambda: defaultdict(set)
     )
+    _condition_index: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
+    _observation_index: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
+    _allergy_index: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
+    _medication_index: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
 
     @staticmethod
     def _nid(type_: str, id_: str) -> str:
@@ -147,6 +151,7 @@ class KnowledgeGraph:
             if self.G.has_node(enc_nid):
                 self.G.add_edge(enc_nid, nid, rel="recorded_in")
         self._index_feature(node.code, node.patient_id)
+        self._observation_index[node.code.lower()].add(node.patient_id)
 
     def add_condition(self, node: ConditionNode):
         self.conditions[node.id] = node
@@ -156,6 +161,8 @@ class KnowledgeGraph:
             self._nid("patient", node.patient_id), nid, rel="has_condition"
         )
         self._index_feature(node.code, node.patient_id)
+        self._condition_index[node.code.lower()].add(node.patient_id)
+
 
     def add_medication(self, node: MedicationNode):
         self.medications[node.id] = node
@@ -165,6 +172,8 @@ class KnowledgeGraph:
             self._nid("patient", node.patient_id), nid, rel="has_medication"
         )
         self._index_feature(node.medication, node.patient_id)
+        self._medication_index[node.medication.lower()].add(node.patient_id)
+
 
     def add_allergy(self, node: AllergyNode):
         self.allergies[node.id] = node
@@ -174,6 +183,8 @@ class KnowledgeGraph:
             self._nid("patient", node.patient_id), nid, rel="has_allergy"
         )
         self._index_feature(node.substance, node.patient_id)
+        self._allergy_index[node.substance.lower()].add(node.patient_id)
+
 
 
     # Traversal methods
@@ -191,6 +202,10 @@ class KnowledgeGraph:
             elif isinstance(obj, ObservationNode):
                 if obj.value.lower() not in ("absent", "false", "no"):
                     features.add(obj.code.lower())
+            elif isinstance(obj, AllergyNode):
+                features.add(obj.substance.lower())
+            elif isinstance(obj, MedicationNode):
+                features.add(obj.medication.lower())
         return features
 
     def get_patients_by_feature(self, feature: str) -> list[str]:
@@ -325,13 +340,18 @@ class KnowledgeGraph:
         return "\n\n".join(self.get_patient_context(pid) for pid in patient_ids)
 
     def get_population_summary(self, top_n: int = 20) -> str:
-        """top features across all patients."""
         lines = ["=== POPULATION SUMMARY ==="]
-        ranked = sorted(
-            self._feature_index.items(), key=lambda x: len(x[1]), reverse=True
-        )
-        for code, pids in ranked[:top_n]:
-            lines.append(f"{code}: {len(pids)} patient(s) — {', '.join(sorted(pids))}")
+        for label, index in [
+            ("Conditions", self._condition_index),
+            ("Observations", self._observation_index),
+            ("Allergies", self._allergy_index),
+            ("Medications", self._medication_index),
+        ]:
+            ranked = sorted(index.items(), key=lambda x: len(x[1]), reverse=True)
+            if ranked:
+                lines.append(f"\n--- {label} ---")
+                for code, pids in ranked[:top_n]:
+                    lines.append(f"  {code}: {len(pids)} patient(s) — {', '.join(sorted(pids))}")
         return "\n".join(lines)
 
 
@@ -482,10 +502,10 @@ DO NOT include explanations, markdown, or any text before or after the JSON.
 DO NOT wrap the JSON in code fences
 
 Traversal goal guide:
-- find_similar: "patients like X", "similar symptoms", "who else has this"
-- get_history: "history of patient X", "what does patient X have", "show me patient X"
-- compare: "compare patient A and B", "differences between X and Y"
+- find_similar: "patients like X", "similar symptoms to X", "who else has what X has". RULE: only ONE patient is named and you are searching the population for matches.
 - find_by_symptom: "who has diabetes", "patients with fever", no specific patient anchor
+- get_history: "history of patient X", "what does patient X have", "show me patient X"
+- compare: "compare patient A and B", "differences between X and Y", "what do A and B have in common", "similarities between patient A and B". RULE: if two or more specific patients are named, ALWAYS use compare.
 - population_stats: "common conditions", "most frequent", "across all patients"
 
 
@@ -647,6 +667,11 @@ Format your response with clear sections when appropriate. Be specific and cite 
                         lines.append(f"  • Condition: {obj.code} [{obj.status}]")
                     elif isinstance(obj, ObservationNode) and anchor_val.lower() in obj.code.lower():
                         lines.append(f"  • Observation: {obj.code}: {obj.value}")
+                    elif isinstance(obj, AllergyNode) and (
+                        anchor_val.lower() in obj.substance.lower()
+                        or obj.substance.lower() in anchor_val.lower()
+                    ):
+                        lines.append(f"  • Allergy: {obj.substance} | Reaction: {obj.reaction}")
                 lines.append("")
             return "\n".join(lines)
 
